@@ -1,0 +1,23 @@
+{
+  "sam_api_key": "",
+  "sam_api_base_url": "https://api.sam.gov/opportunities/v2/search",
+  "search_days_back": 365,
+  "naics_codes": ["485320","485999","485310","492110","621910","488999"],
+  "states": ["MA"],
+  "direct_transport_keywords": [
+    "nemt", "non-emergency medical", "medical transport", "patient transport",
+    "wheelchair", "stretcher", "ambulatory", "paratransit", "medicaid transport",
+    "dial-a-ride", "non-emergency", "medical transportation"
+  ],
+  "service_type_keywords": [
+    "courier", "delivery", "shuttle", "airport", "pharmacy", "specimen",
+    "laboratory", "logistics", "transportation services", "passenger",
+    "transit", "ground transportation", "van service", "fleet", "charter"
+  ],
+  "exclude_keywords": [
+    "school bus", "schoolbus", "school transportation",
+    "pupil transportation", "school district transport", "yellow bus"
+  ],
+  "auto_high_value": 500000,
+  "commbuys_search_url": "https://www.commbuys.com/bso/external/publicBids.sdo"
+}

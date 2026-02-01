@@ -1,0 +1,38 @@
+[
+  {
+    "id": "manual-001",
+    "title": "MassHealth NEMT Brokerage Services",
+    "agency": "Massachusetts Executive Office of Health and Human Services",
+    "source_detail": "COMMBUYS listing / MassHealth procurement",
+    "posted_date": "2025-09-15",
+    "response_deadline": "2025-12-01",
+    "award_amount": 850000,
+    "naics_code": "621910",
+    "place_of_performance": "Statewide, MA",
+    "description": "Non-emergency medical transportation brokerage services for MassHealth members. Includes scheduling, dispatching, and coordination of wheelchair van, stretcher, and ambulatory transport across all Massachusetts counties. Broker must maintain network of qualified NEMT providers.",
+    "contact_name": "Jane Rodriguez",
+    "contact_email": "jane.rodriguez@mass.gov",
+    "contact_phone": "617-555-0142",
+    "url": "https://www.commbuys.com/bso/external/publicBids.sdo",
+    "status": "active",
+    "notes": "Large statewide contract. Check COMMBUYS for RFP updates. Previous contract held by regional broker."
+  },
+  {
+    "id": "manual-002",
+    "title": "MBTA The RIDE Paratransit Supplement - South Shore Zone",
+    "agency": "Massachusetts Bay Transportation Authority (MBTA)",
+    "source_detail": "MBTA Procurement Portal",
+    "posted_date": "2025-10-01",
+    "response_deadline": "2025-11-15",
+    "award_amount": 320000,
+    "naics_code": "485320",
+    "place_of_performance": "South Shore, MA",
+    "description": "Supplemental paratransit transportation services for MBTA The RIDE program covering the South Shore service zone. Requires ADA-compliant vehicles, wheelchair lifts, and trained operators. Estimated 200 trips per week.",
+    "contact_name": "Michael Chen",
+    "contact_email": "mchen@mbta.com",
+    "contact_phone": "617-555-0198",
+    "url": "https://www.mbta.com/procurement",
+    "status": "active",
+    "notes": "Subcontracting opportunity under main RIDE contract. Contact MBTA procurement for vendor registration."
+  }
+]

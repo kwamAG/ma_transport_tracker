@@ -1,0 +1,43 @@
+name: Weekly Transport Tracker Update
+
+on:
+  schedule:
+    - cron: '0 12 * * 1'  # Every Monday at 12:00 UTC (7 AM EST)
+  workflow_dispatch:  # Allow manual runs
+
+permissions:
+  contents: write
+
+jobs:
+  update-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Inject SAM.gov API key
+        run: |
+          python3 -c "
+          import json
+          with open('config.json', 'r') as f:
+              cfg = json.load(f)
+          cfg['sam_api_key'] = '${{ secrets.SAM_API_KEY }}'
+          with open('config.json', 'w') as f:
+              json.dump(cfg, f, indent=2)
+          "
+
+      - name: Run tracker
+        run: python3 tracker.py
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/index.html docs/opportunities.csv seen_opportunities.json
+          git diff --cached --quiet || git commit -m "Update transport tracker report $(date -u +'%Y-%m-%d')"
+          git push

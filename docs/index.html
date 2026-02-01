@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MA Transportation Opportunity Tracker</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.5;
+            padding: 12px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        h1 { font-size: 1.3em; margin-bottom: 4px; }
+        .summary {
+            background: #fff;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 16px;
+            border: 1px solid #ddd;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .stat {
+            text-align: center;
+            padding: 8px 4px;
+            background: #f9f9f9;
+            border-radius: 6px;
+        }
+        .stat-num { font-size: 1.5em; font-weight: bold; color: #2c3e50; }
+        .stat-label { font-size: 0.72em; color: #888; }
+        .commbuys-section {
+            background: #fff;
+            border-radius: 8px;
+            padding: 0;
+            margin-bottom: 16px;
+            border: 1px solid #ddd;
+        }
+        .commbuys-section summary {
+            padding: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9em;
+            color: #2c3e50;
+        }
+        .commbuys-section .cb-body {
+            padding: 0 12px 12px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .cb-link {
+            border-color: #8e44ad !important;
+            color: #8e44ad !important;
+        }
+        .cb-link:hover {
+            background: #8e44ad !important;
+            color: #fff !important;
+        }
+        .toolbar {
+            background: #fff;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 16px;
+            border: 1px solid #ddd;
+        }
+        .search-input {
+            width: 100%;
+            padding: 10px 14px;
+            font-size: 1em;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            outline: none;
+            margin-bottom: 10px;
+        }
+        .search-input:focus {
+            border-color: #2980b9;
+            box-shadow: 0 0 0 3px rgba(41,128,185,0.15);
+        }
+        .filter-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+        .filter-select {
+            padding: 7px 10px;
+            font-size: 0.85em;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: #fff;
+            outline: none;
+            flex: 1 1 130px;
+            min-width: 110px;
+        }
+        .filter-select:focus {
+            border-color: #2980b9;
+        }
+        .csv-btn {
+            display: inline-block;
+            padding: 7px 14px;
+            font-size: 0.85em;
+            background: #27ae60;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .csv-btn:hover {
+            background: #219a52;
+        }
+        .filter-count {
+            font-size: 0.85em;
+            color: #888;
+            margin-top: 8px;
+        }
+        .opp-card {
+            border: 1px solid #ddd;
+            border-left: 4px solid #2980b9;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+            background: #fff;
+        }
+        .opp-card[data-is-new="true"] {
+            border-left-color: #27ae60;
+        }
+        .opp-card[data-source="Manual"] {
+            border-left-color: #8e44ad;
+        }
+        .card-header {
+            margin-bottom: 6px;
+        }
+        .card-title-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .card-name {
+            font-size: 1em;
+            flex: 1 1 auto;
+            min-width: 0;
+            overflow-wrap: break-word;
+        }
+        .card-badges {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+        .badge {
+            color: #fff;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.7em;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        .badge-new {
+            background: #27ae60;
+        }
+        .card-sub {
+            color: #666;
+            font-size: 0.85em;
+            margin-top: 4px;
+        }
+        .card-detail {
+            font-size: 0.85em;
+            margin-top: 4px;
+        }
+        .card-desc {
+            font-size: 0.85em;
+            margin-top: 6px;
+            color: #444;
+        }
+        .card-contact {
+            font-size: 0.82em;
+            margin-top: 6px;
+            color: #555;
+        }
+        .card-contact a {
+            color: #2980b9;
+        }
+        .card-keywords {
+            margin-top: 6px;
+            font-size: 0.85em;
+        }
+        .kw-tag {
+            background: #eee;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            margin: 2px;
+            display: inline-block;
+        }
+        .card-notes {
+            font-size: 0.82em;
+            margin-top: 6px;
+            color: #666;
+            font-style: italic;
+        }
+        .card-links {
+            margin-top: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .link-btn {
+            display: inline-block;
+            padding: 4px 10px;
+            font-size: 0.78em;
+            border: 1px solid #2980b9;
+            border-radius: 4px;
+            color: #2980b9;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .link-btn:hover {
+            background: #2980b9;
+            color: #fff;
+        }
+        .no-results {
+            text-align: center;
+            color: #888;
+            padding: 32px 12px;
+            font-size: 1em;
+            display: none;
+        }
+        @media (max-width: 600px) {
+            .filter-row {
+                flex-direction: column;
+            }
+            .filter-select, .csv-btn {
+                flex: 1 1 100%;
+                width: 100%;
+            }
+            .card-title-row {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>MA Transportation Opportunity Tracker</h1>
+    <p style="color:#888;font-size:0.85em;margin-bottom:12px;">
+        NEMT, courier, paratransit, shuttle &amp; transport contracts in Massachusetts &bull;
+        Updated February 01, 2026 at 02:07 AM UTC
+    </p>
+
+    <div class="summary">
+        <div class="summary-grid">
+            <div class="stat">
+                <div class="stat-num">2</div>
+                <div class="stat-label">New This Week</div>
+            </div>
+            <div class="stat">
+                <div class="stat-num">2</div>
+                <div class="stat-label">Total Tracked</div>
+            </div>
+            <div class="stat">
+                <div class="stat-num">0</div>
+                <div class="stat-label">SAM.gov</div>
+            </div>
+            <div class="stat">
+                <div class="stat-num">2</div>
+                <div class="stat-label">Manual</div>
+            </div>
+            <div class="stat">
+                <div class="stat-num">2</div>
+                <div class="stat-label">High Relevance</div>
+            </div>
+            <div class="stat">
+                <div class="stat-num">2</div>
+                <div class="stat-label">Active</div>
+            </div>
+        </div>
+    </div>
+
+    <details class="commbuys-section">
+        <summary>COMMBUYS Quick Links &mdash; Search MA procurement portal</summary>
+        <div class="cb-body">
+            <a class="link-btn cb-link" href="https://www.commbuys.com/bso/external/publicBids.sdo?keywords=non-emergency+medical+transportation" target="_blank" rel="noopener">NEMT / Medical Transport</a>
+<a class="link-btn cb-link" href="https://www.commbuys.com/bso/external/publicBids.sdo?keywords=paratransit+transportation" target="_blank" rel="noopener">Paratransit</a>
+<a class="link-btn cb-link" href="https://www.commbuys.com/bso/external/publicBids.sdo?keywords=courier+delivery+services" target="_blank" rel="noopener">Courier / Delivery</a>
+<a class="link-btn cb-link" href="https://www.commbuys.com/bso/external/publicBids.sdo?keywords=shuttle+transportation" target="_blank" rel="noopener">Shuttle Services</a>
+<a class="link-btn cb-link" href="https://www.commbuys.com/bso/external/publicBids.sdo?keywords=transportation+services" target="_blank" rel="noopener">Transportation Services</a>
+<a class="link-btn cb-link" href="https://www.commbuys.com/bso/external/publicBids.sdo?keywords=patient+transport" target="_blank" rel="noopener">Patient Transport</a>
+<a class="link-btn cb-link" href="https://www.commbuys.com/bso/external/publicBids.sdo?keywords=wheelchair+van+service" target="_blank" rel="noopener">Wheelchair Van</a>
+<a class="link-btn cb-link" href="https://www.commbuys.com/bso/external/publicBids.sdo?keywords=fleet+management+transportation" target="_blank" rel="noopener">Fleet Services</a>
+
+        </div>
+    </details>
+
+    <div class="toolbar">
+        <input type="text" id="searchInput" class="search-input"
+               placeholder="Search title, agency, description, keywords, contact, service type...">
+        <div class="filter-row">
+            <select id="filterSource" class="filter-select">
+                <option value="">All Sources</option>
+                <option value="SAM.gov">SAM.gov</option>
+                <option value="Manual">Manual</option>
+            </select>
+            <select id="filterRelevance" class="filter-select">
+                <option value="">All Relevance</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+            </select>
+            <select id="filterServiceType" class="filter-select">
+                <option value="">All Service Types</option>
+                <option value="NEMT">NEMT</option><option value="Paratransit">Paratransit</option>
+            </select>
+            <select id="filterStatus" class="filter-select">
+                <option value="">All Statuses</option>
+                <option value="active">active</option>
+            </select>
+            <select id="sortOrder" class="filter-select">
+                <option value="default">Sort: Default</option>
+                <option value="newest">Sort: Newest First</option>
+                <option value="oldest">Sort: Oldest First</option>
+                <option value="deadline">Sort: Deadline Soonest</option>
+            </select>
+            <a href="opportunities.csv" class="csv-btn" download>Download CSV</a>
+        </div>
+        <div class="filter-count" id="filterCount"></div>
+    </div>
+
+    <div id="cardContainer">
+        <div class="opp-card" data-source="Manual" data-relevance="high" data-service-type="NEMT" data-status="active" data-is-new="true" data-date="2025-09-15" data-deadline="2025-12-01" data-search="masshealth nemt brokerage services massachusetts executive office of health and human services non-emergency medical transportation brokerage services for masshealth members. includes scheduling, dispatching, and coordination of wheelchair van, stretcher, and ambulatory transport across all massachusetts counties. broker must maintain network of qualified nemt providers. nemt non-emergency medical medical transport wheelchair stretcher ambulatory non-emergency medical transportation jane rodrigu"><div class="card-header"><div class="card-title-row"><strong class="card-name">MassHealth NEMT Brokerage Services</strong><div class="card-badges"><span class="badge" style="background:#8e44ad;">Manual</span><span class="badge" style="background:#c0392b;">HIGH</span><span class="badge" style="background:#16a085;">NEMT</span><span class="badge badge-new">NEW</span></div></div><div class="card-sub">Massachusetts Executive Office of Health and Human Services &bull; NAICS: 621910</div></div><div class="card-detail"><strong>Posted:</strong> 2025-09-15 &bull; <strong>Deadline:</strong> 2025-12-01 &bull; <strong>Award:</strong> $850K</div><div class="card-detail"><strong>Location:</strong> Statewide, MA</div><div class="card-desc">Non-emergency medical transportation brokerage services for MassHealth members. Includes scheduling, dispatching, and coordination of wheelchair van, stretcher, and ambulatory transport across all Massachusetts counties. Broker must maintain network of qualified NEMT providers.</div><div class="card-contact">Jane Rodriguez &bull; <a href="mailto:jane.rodriguez@mass.gov">jane.rodriguez@mass.gov</a> &bull; 617-555-0142</div><div class="card-keywords">Keywords: <span class="kw-tag">ambulatory</span><span class="kw-tag">medical transport</span><span class="kw-tag">medical transportation</span><span class="kw-tag">nemt</span><span class="kw-tag">non-emergency</span><span class="kw-tag">non-emergency medical</span><span class="kw-tag">stretcher</span><span class="kw-tag">wheelchair</span></div><div class="card-notes"><strong>Notes:</strong> Large statewide contract. Check COMMBUYS for RFP updates. Previous contract held by regional broker.</div><div class="card-links"><a class="link-btn" href="https://www.commbuys.com/bso/external/publicBids.sdo" target="_blank" rel="noopener">View Source</a><a class="link-btn" href="https://www.commbuys.com/bso/external/publicBids.sdo?keywords=MassHealth+NEMT+Brokerage+Services" target="_blank" rel="noopener">Search COMMBUYS</a><a class="link-btn" href="https://www.google.com/search?q=%22MassHealth%20NEMT%20Brokerage%20Services%22%20Massachusetts%20transportation" target="_blank" rel="noopener">Search News</a><a class="link-btn" href="mailto:jane.rodriguez@mass.gov?subject=Inquiry%3A%20MassHealth%20NEMT%20Brokerage%20Services">Contact</a></div></div><div class="opp-card" data-source="Manual" data-relevance="high" data-service-type="Paratransit" data-status="active" data-is-new="true" data-date="2025-10-01" data-deadline="2025-11-15" data-search="mbta the ride paratransit supplement - south shore zone massachusetts bay transportation authority (mbta) supplemental paratransit transportation services for mbta the ride program covering the south shore service zone. requires ada-compliant vehicles, wheelchair lifts, and trained operators. estimated 200 trips per week. wheelchair paratransit transportation services transit michael chen paratransit south shore, ma 485320 subcontracting opportunity under main ride contract. contact mbta procure"><div class="card-header"><div class="card-title-row"><strong class="card-name">MBTA The RIDE Paratransit Supplement - South Shore Zone</strong><div class="card-badges"><span class="badge" style="background:#8e44ad;">Manual</span><span class="badge" style="background:#c0392b;">HIGH</span><span class="badge" style="background:#2c3e50;">Paratransit</span><span class="badge badge-new">NEW</span></div></div><div class="card-sub">Massachusetts Bay Transportation Authority (MBTA) &bull; NAICS: 485320</div></div><div class="card-detail"><strong>Posted:</strong> 2025-10-01 &bull; <strong>Deadline:</strong> 2025-11-15 &bull; <strong>Award:</strong> $320K</div><div class="card-detail"><strong>Location:</strong> South Shore, MA</div><div class="card-desc">Supplemental paratransit transportation services for MBTA The RIDE program covering the South Shore service zone. Requires ADA-compliant vehicles, wheelchair lifts, and trained operators. Estimated 200 trips per week.</div><div class="card-contact">Michael Chen &bull; <a href="mailto:mchen@mbta.com">mchen@mbta.com</a> &bull; 617-555-0198</div><div class="card-keywords">Keywords: <span class="kw-tag">paratransit</span><span class="kw-tag">transit</span><span class="kw-tag">transportation services</span><span class="kw-tag">wheelchair</span></div><div class="card-notes"><strong>Notes:</strong> Subcontracting opportunity under main RIDE contract. Contact MBTA procurement for vendor registration.</div><div class="card-links"><a class="link-btn" href="https://www.mbta.com/procurement" target="_blank" rel="noopener">View Source</a><a class="link-btn" href="https://www.commbuys.com/bso/external/publicBids.sdo?keywords=MBTA+The+RIDE+Paratransit+Supplement+-+South+Shore+Zone" target="_blank" rel="noopener">Search COMMBUYS</a><a class="link-btn" href="https://www.google.com/search?q=%22MBTA%20The%20RIDE%20Paratransit%20Supplement%20-%20South%20Shore%20Zone%22%20Massachusetts%20transportation" target="_blank" rel="noopener">Search News</a><a class="link-btn" href="mailto:mchen@mbta.com?subject=Inquiry%3A%20MBTA%20The%20RIDE%20Paratransit%20Supplement%20-%20South%20Shore%20Zone">Contact</a></div></div>
+    </div>
+    <div class="no-results" id="noResults">No opportunities match your filters.</div>
+
+    <footer style="margin-top:24px;padding-top:12px;border-top:1px solid #ddd;color:#aaa;font-size:0.75em;text-align:center;">
+        Data from <a href="https://sam.gov" style="color:#aaa;">SAM.gov</a> &amp;
+        <a href="https://www.commbuys.com" style="color:#aaa;">COMMBUYS</a> &bull;
+        MA Transportation Opportunity Tracker
+    </footer>
+
+    <script>
+    (function() {
+        var cards = [];
+        var container = document.getElementById('cardContainer');
+        var noResults = document.getElementById('noResults');
+        var countEl = document.getElementById('filterCount');
+        var searchInput = document.getElementById('searchInput');
+        var filterSource = document.getElementById('filterSource');
+        var filterRelevance = document.getElementById('filterRelevance');
+        var filterServiceType = document.getElementById('filterServiceType');
+        var filterStatus = document.getElementById('filterStatus');
+        var sortOrder = document.getElementById('sortOrder');
+        var debounceTimer = null;
+
+        var els = container.getElementsByClassName('opp-card');
+        for (var i = 0; i < els.length; i++) {
+            cards.push(els[i]);
+        }
+        var total = cards.length;
+
+        function applyFilters() {
+            var q = searchInput.value.toLowerCase().trim();
+            var src = filterSource.value;
+            var rel = filterRelevance.value;
+            var stype = filterServiceType.value;
+            var stat = filterStatus.value;
+            var shown = 0;
+
+            for (var i = 0; i < cards.length; i++) {
+                var c = cards[i];
+                var visible = true;
+                if (src && c.getAttribute('data-source') !== src) visible = false;
+                if (rel && c.getAttribute('data-relevance') !== rel) visible = false;
+                if (stype && c.getAttribute('data-service-type') !== stype) visible = false;
+                if (stat && c.getAttribute('data-status') !== stat) visible = false;
+                if (q && c.getAttribute('data-search').indexOf(q) === -1) visible = false;
+                c.style.display = visible ? '' : 'none';
+                if (visible) shown++;
+            }
+
+            countEl.textContent = 'Showing ' + shown + ' of ' + total + ' opportunities';
+            noResults.style.display = (shown === 0) ? 'block' : 'none';
+        }
+
+        function applySort() {
+            var order = sortOrder.value;
+            if (order === 'default') return;
+
+            var sorted = cards.slice().sort(function(a, b) {
+                if (order === 'newest' || order === 'oldest') {
+                    var da = a.getAttribute('data-date') || '';
+                    var db = b.getAttribute('data-date') || '';
+                    if (order === 'newest') return da < db ? 1 : (da > db ? -1 : 0);
+                    return da > db ? 1 : (da < db ? -1 : 0);
+                }
+                if (order === 'deadline') {
+                    var dla = a.getAttribute('data-deadline') || 'zzzz';
+                    var dlb = b.getAttribute('data-deadline') || 'zzzz';
+                    return dla > dlb ? 1 : (dla < dlb ? -1 : 0);
+                }
+                return 0;
+            });
+
+            for (var i = 0; i < sorted.length; i++) {
+                container.appendChild(sorted[i]);
+            }
+        }
+
+        function update() {
+            applySort();
+            applyFilters();
+        }
+
+        searchInput.addEventListener('input', function() {
+            if (debounceTimer) clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(update, 200);
+        });
+
+        filterSource.addEventListener('change', update);
+        filterRelevance.addEventListener('change', update);
+        filterServiceType.addEventListener('change', update);
+        filterStatus.addEventListener('change', update);
+        sortOrder.addEventListener('change', update);
+
+        applyFilters();
+    })();
+    </script>
+</body>
+</html>
