@@ -1463,18 +1463,12 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
     </style>
 </head>
 <body>
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-        <div>
-            <h1>MA Transportation Opportunity Tracker</h1>
-            <p style="color:#888;font-size:0.85em;">
-                NEMT, courier, paratransit, shuttle, freight, rideshare &amp; transport opportunities in Massachusetts &bull;
-                Public &amp; Private Sector &bull;
-                Updated {run_time} UTC
-            </p>
-        </div>
-        <button id="refreshBtn" onclick="triggerRefresh()" style="padding:8px 16px;font-size:0.85em;font-weight:600;background:#2980b9;color:#fff;border:none;border-radius:6px;cursor:pointer;white-space:nowrap;height:fit-content;">Refresh Report</button>
-    </div>
-    <div id="refreshStatus" style="display:none;margin-top:6px;margin-bottom:8px;padding:8px 12px;border-radius:6px;font-size:0.85em;"></div>
+    <h1>MA Transportation Opportunity Tracker</h1>
+    <p style="color:#888;font-size:0.85em;margin-bottom:12px;">
+        NEMT, courier, paratransit, shuttle, freight, rideshare &amp; transport opportunities in Massachusetts &bull;
+        Public &amp; Private Sector &bull;
+        Updated {run_time} UTC
+    </p>
 
     <div class="summary">
         <div class="summary-grid">
@@ -1668,59 +1662,6 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
 
         applyFilters();
     }})();
-
-    function triggerRefresh() {{
-        var btn = document.getElementById('refreshBtn');
-        var status = document.getElementById('refreshStatus');
-        var token = localStorage.getItem('gh_pat');
-        if (!token) {{
-            token = prompt('Enter your GitHub Personal Access Token (needs workflow scope).\\nThis will be saved in your browser for future use.');
-            if (!token) return;
-            localStorage.setItem('gh_pat', token);
-        }}
-        btn.disabled = true;
-        btn.textContent = 'Triggering...';
-        btn.style.background = '#7f8c8d';
-        status.style.display = 'block';
-        status.style.background = '#eaf4fd';
-        status.style.color = '#2980b9';
-        status.textContent = 'Triggering workflow... The report will update in a few minutes.';
-
-        fetch('https://api.github.com/repos/kwamAG/ma_transport_tracker/actions/workflows/weekly.yml/dispatches', {{
-            method: 'POST',
-            headers: {{
-                'Authorization': 'Bearer ' + token,
-                'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json'
-            }},
-            body: JSON.stringify({{ ref: 'main' }})
-        }}).then(function(r) {{
-            if (r.status === 204) {{
-                status.style.background = '#eafaf1';
-                status.style.color = '#27ae60';
-                status.textContent = 'Workflow triggered! The report will refresh automatically in a few minutes. Reload this page after that to see updated data.';
-            }} else if (r.status === 401 || r.status === 403) {{
-                localStorage.removeItem('gh_pat');
-                status.style.background = '#fdecea';
-                status.style.color = '#c0392b';
-                status.textContent = 'Invalid or expired token. Click Refresh again to enter a new one.';
-            }} else {{
-                status.style.background = '#fdecea';
-                status.style.color = '#c0392b';
-                status.textContent = 'Error: HTTP ' + r.status + '. Check your token permissions.';
-            }}
-            btn.disabled = false;
-            btn.textContent = 'Refresh Report';
-            btn.style.background = '#2980b9';
-        }}).catch(function(e) {{
-            status.style.background = '#fdecea';
-            status.style.color = '#c0392b';
-            status.textContent = 'Network error: ' + e.message;
-            btn.disabled = false;
-            btn.textContent = 'Refresh Report';
-            btn.style.background = '#2980b9';
-        }});
-    }}
     </script>
 </body>
 </html>""".format(
