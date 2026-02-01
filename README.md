@@ -23,8 +23,7 @@ Finds NEMT, courier, paratransit, shuttle, and diversified transport contract op
 
 1. Create a GitHub repo named `ma_transport_tracker`
 2. Push this code to the repo
-3. **Register for a SAM.gov API key** at https://sam.gov/content/entity-registration -- go to https://open.gsa.gov/api/get-opportunities-public-api/ and request a key
-4. Add the key as a GitHub secret: Settings > Secrets and variables > Actions > New repository secret > Name: `SAM_API_KEY`
+
 5. Enable GitHub Pages: Settings > Pages > Source: deploy from branch `main`, folder `/docs`
 6. The workflow runs automatically every Monday at 7 AM EST
 7. View the report at `https://<your-username>.github.io/ma_transport_tracker/`
