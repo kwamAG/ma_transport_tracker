@@ -15,6 +15,8 @@
     "contact_phone": "617-555-0142",
     "url": "https://www.commbuys.com/bso/external/publicBids.sdo",
     "status": "active",
+    "sector": "public",
+    "opportunity_type": "contract",
     "notes": "Large statewide contract. Check COMMBUYS for RFP updates. Previous contract held by regional broker."
   },
   {
@@ -33,6 +35,48 @@
     "contact_phone": "617-555-0198",
     "url": "https://www.mbta.com/procurement",
     "status": "active",
+    "sector": "public",
+    "opportunity_type": "contract",
     "notes": "Subcontracting opportunity under main RIDE contract. Contact MBTA procurement for vendor registration."
+  },
+  {
+    "id": "manual-003",
+    "title": "Beth Israel Deaconess Medical Center - Patient Shuttle Contract",
+    "agency": "Beth Israel Deaconess Medical Center",
+    "source_detail": "Direct hospital procurement",
+    "posted_date": "2025-11-01",
+    "response_deadline": "2026-03-15",
+    "award_amount": 275000,
+    "naics_code": "485320",
+    "place_of_performance": "Boston, MA",
+    "description": "Patient shuttle transportation services between Beth Israel Deaconess Medical Center campuses in Boston and surrounding communities. Services include wheelchair-accessible vehicles, scheduled routes, and on-demand patient transfers between facilities. Seeking qualified transport vendors with healthcare experience.",
+    "contact_name": "Procurement Office",
+    "contact_email": "procurement@bidmc.harvard.edu",
+    "contact_phone": "",
+    "url": "https://www.bidmc.org",
+    "status": "active",
+    "sector": "private",
+    "opportunity_type": "contract",
+    "notes": "Private hospital contract. Multi-campus shuttle service. Healthcare transport experience preferred."
+  },
+  {
+    "id": "manual-004",
+    "title": "Blue Cross Blue Shield MA - NEMT Vendor Network Expansion",
+    "agency": "Blue Cross Blue Shield of Massachusetts",
+    "source_detail": "BCBS MA provider network recruitment",
+    "posted_date": "2025-12-01",
+    "response_deadline": "2026-06-30",
+    "award_amount": 0,
+    "naics_code": "621910",
+    "place_of_performance": "Statewide, MA",
+    "description": "Blue Cross Blue Shield of Massachusetts is expanding its non-emergency medical transportation vendor network. Seeking licensed NEMT providers to serve members across all Massachusetts regions. Providers must have compliant vehicles, trained drivers, and ability to integrate with BCBS scheduling systems. Rolling enrollment for qualified providers.",
+    "contact_name": "Provider Network Team",
+    "contact_email": "providernetwork@bcbsma.com",
+    "contact_phone": "",
+    "url": "https://www.bluecrossma.org/provider",
+    "status": "active",
+    "sector": "private",
+    "opportunity_type": "partnership",
+    "notes": "Rolling enrollment - no hard deadline. BCBS MA expanding NEMT provider network statewide. Good opportunity for established NEMT operators."
   }
 ]

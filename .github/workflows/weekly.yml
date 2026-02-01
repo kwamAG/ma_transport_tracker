@@ -3,6 +3,7 @@ name: Weekly Transport Tracker Update
 on:
   schedule:
     - cron: '0 12 * * 1'  # Every Monday at 12:00 UTC (7 AM EST)
+    - cron: '0 12 * * 4'  # Every Thursday at 12:00 UTC (7 AM EST) - mid-week feed refresh
   workflow_dispatch:  # Allow manual runs
 
 permissions:

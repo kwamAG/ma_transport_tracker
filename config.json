@@ -1,8 +1,15 @@
 {
   "sam_api_key": "",
   "sam_api_base_url": "https://api.sam.gov/opportunities/v2/search",
+  "usaspending_api_url": "https://api.usaspending.gov/api/v2/search/spending_by_award/",
+  "grants_gov_api_url": "https://api.grants.gov/v1/api/search2",
+  "grants_gov_keywords": ["transit", "transportation", "paratransit", "NEMT", "medical transport", "courier"],
+  "grants_gov_categories": ["TR"],
   "search_days_back": 365,
-  "naics_codes": ["485320","485999","485310","492110","621910","488999"],
+  "naics_codes": [
+    "485320", "485999", "485310", "492110", "621910", "488999",
+    "484110", "484120", "488510", "561599", "485111", "485210"
+  ],
   "states": ["MA"],
   "direct_transport_keywords": [
     "nemt", "non-emergency medical", "medical transport", "patient transport",
@@ -12,12 +19,181 @@
   "service_type_keywords": [
     "courier", "delivery", "shuttle", "airport", "pharmacy", "specimen",
     "laboratory", "logistics", "transportation services", "passenger",
-    "transit", "ground transportation", "van service", "fleet", "charter"
+    "transit", "ground transportation", "van service", "fleet", "charter",
+    "freight", "trucking", "moving", "relocation", "last-mile", "mail", "parcel"
+  ],
+  "private_sector_keywords": [
+    "amazon", "dsp", "flex", "fedex", "ups", "uber", "lyft", "doordash",
+    "instacart", "grubhub", "gig", "independent contractor", "owner operator",
+    "delivery driver", "courier driver", "cdl", "freight broker", "last mile",
+    "rideshare", "ride-share", "nemt provider", "modivcare", "mtm", "veyo",
+    "xpo", "delivery partner", "delivery service partner", "dispatch",
+    "box truck", "sprinter van", "cargo van", "route", "delivery route"
   ],
   "exclude_keywords": [
     "school bus", "schoolbus", "school transportation",
     "pupil transportation", "school district transport", "yellow bus"
   ],
   "auto_high_value": 500000,
-  "commbuys_search_url": "https://www.commbuys.com/bso/external/publicBids.sdo"
+  "commbuys_search_url": "https://www.commbuys.com/bso/external/publicBids.sdo",
+  "craigslist_feeds": [
+    {
+      "name": "Boston Transport Jobs",
+      "url": "https://boston.craigslist.org/search/trp?format=rss",
+      "category": "transport"
+    },
+    {
+      "name": "Boston Delivery Gigs",
+      "url": "https://boston.craigslist.org/search/trd?format=rss&query=delivery+driver",
+      "category": "delivery"
+    },
+    {
+      "name": "Boston Courier Gigs",
+      "url": "https://boston.craigslist.org/search/trd?format=rss&query=courier",
+      "category": "courier"
+    },
+    {
+      "name": "Boston Transportation Gigs",
+      "url": "https://boston.craigslist.org/search/trd?format=rss&query=transportation",
+      "category": "transportation"
+    },
+    {
+      "name": "Boston CDL/Freight Jobs",
+      "url": "https://boston.craigslist.org/search/trp?format=rss&query=cdl+freight",
+      "category": "freight"
+    }
+  ],
+  "indeed_feeds": [
+    {
+      "name": "Delivery Driver MA",
+      "url": "https://www.indeed.com/rss?q=delivery+driver&l=Massachusetts&sort=date",
+      "category": "delivery"
+    },
+    {
+      "name": "Courier MA",
+      "url": "https://www.indeed.com/rss?q=courier&l=Massachusetts&sort=date",
+      "category": "courier"
+    },
+    {
+      "name": "CDL Freight MA",
+      "url": "https://www.indeed.com/rss?q=cdl+freight+driver&l=Massachusetts&sort=date",
+      "category": "freight"
+    },
+    {
+      "name": "NEMT Driver MA",
+      "url": "https://www.indeed.com/rss?q=nemt+driver&l=Massachusetts&sort=date",
+      "category": "nemt"
+    },
+    {
+      "name": "Shuttle Driver MA",
+      "url": "https://www.indeed.com/rss?q=shuttle+driver&l=Massachusetts&sort=date",
+      "category": "shuttle"
+    }
+  ],
+  "private_directory": [
+    {
+      "name": "Amazon DSP (Delivery Service Partner)",
+      "category": "Last-Mile",
+      "url": "https://logistics.amazon.com/marketing/opportunity",
+      "description": "Start your own delivery business with Amazon. DSP owners manage teams of drivers delivering Amazon packages. Requires $10K liquid capital minimum.",
+      "requirements": "Business entity, $10K+ liquid capital, pass background check",
+      "earning_potential": "$75K-$300K annually (business owner)"
+    },
+    {
+      "name": "Amazon Flex",
+      "category": "Last-Mile",
+      "url": "https://flex.amazon.com",
+      "description": "Deliver Amazon packages using your own vehicle on flexible schedules. Independent contractor gig work for individual drivers.",
+      "requirements": "Valid license, own vehicle, smartphone, pass background check",
+      "earning_potential": "$18-$25/hour"
+    },
+    {
+      "name": "FedEx Ground ISP (Independent Service Provider)",
+      "category": "Freight",
+      "url": "https://www.fedex.com/en-us/about/business-opportunities.html",
+      "description": "Own and operate FedEx Ground delivery routes. ISP model allows owning multiple routes and managing driver teams.",
+      "requirements": "Business entity, significant capital investment, fleet of vehicles",
+      "earning_potential": "$100K-$500K+ annually per route cluster"
+    },
+    {
+      "name": "Uber Freight",
+      "category": "Freight",
+      "url": "https://www.uberfreight.com/carrier",
+      "description": "Book and manage freight loads through Uber Freight platform. For carriers and owner-operators with CDL and commercial vehicles.",
+      "requirements": "CDL, commercial vehicle, MC/DOT authority",
+      "earning_potential": "Varies by load and lane"
+    },
+    {
+      "name": "XPO Logistics",
+      "category": "Freight",
+      "url": "https://www.xpo.com/carrier-opportunities",
+      "description": "Partner with XPO for last-mile, LTL, and truckload freight opportunities. Independent contractor and fleet owner programs available.",
+      "requirements": "CDL, commercial vehicle, insurance, MC/DOT authority",
+      "earning_potential": "Varies by contract type"
+    },
+    {
+      "name": "Uber (Rideshare)",
+      "category": "Rideshare/Gig",
+      "url": "https://www.uber.com/us/en/drive/",
+      "description": "Drive passengers or deliver food with Uber and Uber Eats in the Boston/Massachusetts market.",
+      "requirements": "Valid license, vehicle meeting requirements, background check",
+      "earning_potential": "$15-$35/hour before expenses"
+    },
+    {
+      "name": "Lyft",
+      "category": "Rideshare/Gig",
+      "url": "https://www.lyft.com/driver",
+      "description": "Rideshare driving in Massachusetts. Flexible scheduling with passenger transport throughout the Boston metro area.",
+      "requirements": "Valid license, vehicle meeting requirements, background check",
+      "earning_potential": "$15-$30/hour before expenses"
+    },
+    {
+      "name": "DoorDash",
+      "category": "Rideshare/Gig",
+      "url": "https://dasher.doordash.com",
+      "description": "Food and grocery delivery in Massachusetts. Flexible gig work as an independent Dasher contractor.",
+      "requirements": "Valid license, vehicle/bike/scooter, smartphone, background check",
+      "earning_potential": "$15-$25/hour before expenses"
+    },
+    {
+      "name": "Instacart",
+      "category": "Rideshare/Gig",
+      "url": "https://shoppers.instacart.com",
+      "description": "Grocery shopping and delivery service. Shop and deliver groceries to customers in Massachusetts.",
+      "requirements": "Valid license, vehicle, smartphone, ability to lift 40+ lbs",
+      "earning_potential": "$12-$25/hour before expenses"
+    },
+    {
+      "name": "Grubhub",
+      "category": "Rideshare/Gig",
+      "url": "https://driver.grubhub.com",
+      "description": "Food delivery in the Greater Boston area and across Massachusetts. Flexible scheduling as independent delivery partner.",
+      "requirements": "Valid license, vehicle, smartphone, background check",
+      "earning_potential": "$12-$22/hour before expenses"
+    },
+    {
+      "name": "Modivcare (formerly Providence Service Corp)",
+      "category": "NEMT",
+      "url": "https://www.modivcare.com/transportation-providers",
+      "description": "Major NEMT broker operating in Massachusetts. Contracts with Medicaid/Medicare plans for non-emergency medical transportation. Seeking qualified transport providers.",
+      "requirements": "Licensed NEMT provider, compliant vehicles, trained drivers, insurance",
+      "earning_potential": "$25-$45/trip depending on service level"
+    },
+    {
+      "name": "MTM Inc",
+      "category": "NEMT",
+      "url": "https://www.mtm-inc.net/transportation-providers/",
+      "description": "National NEMT broker managing transportation for health plans. Active in Massachusetts Medicaid transportation network.",
+      "requirements": "Licensed NEMT provider, compliant vehicles, background checks, insurance",
+      "earning_potential": "$20-$40/trip depending on service level"
+    },
+    {
+      "name": "Veyo",
+      "category": "NEMT",
+      "url": "https://www.veyo.com/drivers",
+      "description": "Technology-driven NEMT platform. Connects qualified drivers with non-emergency medical transport rides. Active in multiple states including MA.",
+      "requirements": "Valid license, 4-door vehicle, smartphone, background check",
+      "earning_potential": "$18-$30/hour"
+    }
+  ]
 }

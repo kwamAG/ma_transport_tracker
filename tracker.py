@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 """MA Transportation Opportunity Tracker.
 
-Finds NEMT, courier, paratransit, shuttle, and diversified transport contract
-opportunities in Massachusetts via SAM.gov and manual entries. Generates a
-mobile-friendly HTML report and CSV export. Uses only Python standard library.
+Finds NEMT, courier, paratransit, shuttle, freight, rideshare, last-mile
+delivery, and diversified transport opportunities in Massachusetts from both
+government (SAM.gov, COMMBUYS) and private sector sources (Craigslist, Indeed,
+curated directory). Generates a mobile-friendly HTML report and CSV export.
+Uses only Python standard library.
 """
 
 import json
 import os
 import csv
 import ssl
+import re
+import hashlib
+import time
+import xml.etree.ElementTree as ET
 import urllib.request
 import urllib.parse
 from datetime import datetime, timezone, timedelta
@@ -102,15 +108,27 @@ def format_date_display(date_str):
     return s
 
 
+def strip_html_tags(text):
+    """Remove HTML tags from text, returning plain text."""
+    if not text:
+        return ""
+    clean = re.sub(r'<[^>]+>', ' ', str(text))
+    clean = re.sub(r'\s+', ' ', clean).strip()
+    return clean
+
+
+def stable_id(prefix, value):
+    """Generate a stable ID from a prefix and value using MD5 hash."""
+    h = hashlib.md5(str(value).encode("utf-8")).hexdigest()[:12]
+    return "{}-{}".format(prefix, h)
+
+
 # ---------------------------------------------------------------------------
 # SAM.gov API integration
 # ---------------------------------------------------------------------------
 
 def api_fetch_sam(config, naics_code, offset=0, limit=25):
-    """Query SAM.gov opportunities API for a single NAICS code + state.
-
-    Returns parsed JSON response or None on error.
-    """
+    """Query SAM.gov opportunities API for a single NAICS code + state."""
     api_key = config.get("sam_api_key", "")
     base_url = config.get("sam_api_base_url", "https://api.sam.gov/opportunities/v2/search")
     days_back = config.get("search_days_back", 365)
@@ -129,13 +147,12 @@ def api_fetch_sam(config, naics_code, offset=0, limit=25):
         "ptype": "o,p,k",
     })
 
-    # Add state filter
     for state in config.get("states", ["MA"]):
         params += "&state=" + urllib.parse.quote(state)
 
     url = "{}?{}".format(base_url, params)
     ctx = ssl.create_default_context()
-    req = urllib.request.Request(url, headers={"User-Agent": "MATransportTracker/1.0"})
+    req = urllib.request.Request(url, headers={"User-Agent": "MATransportTracker/2.0"})
 
     try:
         with urllib.request.urlopen(req, context=ctx, timeout=60) as resp:
@@ -147,11 +164,7 @@ def api_fetch_sam(config, naics_code, offset=0, limit=25):
 
 
 def fetch_all_sam_opportunities(config):
-    """Fetch opportunities from SAM.gov across all configured NAICS codes.
-
-    Paginates through results and deduplicates by noticeId.
-    Returns list of raw opportunity dicts.
-    """
+    """Fetch opportunities from SAM.gov across all configured NAICS codes."""
     api_key = config.get("sam_api_key", "")
     if not api_key:
         print("  WARNING: No SAM.gov API key configured. Skipping SAM.gov fetch.")
@@ -166,7 +179,7 @@ def fetch_all_sam_opportunities(config):
         print("  Fetching NAICS {}...".format(naics))
         offset = 0
         limit = 25
-        max_pages = 40  # Safety limit
+        max_pages = 40
 
         for page in range(max_pages):
             data = api_fetch_sam(config, naics, offset=offset, limit=limit)
@@ -194,16 +207,368 @@ def fetch_all_sam_opportunities(config):
 
 
 # ---------------------------------------------------------------------------
+# Craigslist RSS integration
+# ---------------------------------------------------------------------------
+
+def fetch_craigslist_opportunities(config):
+    """Fetch transport job postings from Craigslist RSS feeds.
+
+    Reads feed definitions from config, parses RSS/RDF XML, filters by
+    transport keywords, and returns standardized opportunity dicts.
+    """
+    feeds = config.get("craigslist_feeds", [])
+    if not feeds:
+        print("  No Craigslist feeds configured.")
+        return []
+
+    direct_kw = config.get("direct_transport_keywords", [])
+    service_kw = config.get("service_type_keywords", [])
+    private_kw = config.get("private_sector_keywords", [])
+    exclude_kw = config.get("exclude_keywords", [])
+    all_keywords = direct_kw + service_kw + private_kw
+
+    ctx = ssl.create_default_context()
+    opportunities = []
+    seen_links = set()
+
+    # Common RSS/RDF namespaces
+    namespaces = {
+        "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+        "dc": "http://purl.org/dc/elements/1.1/",
+        "content": "http://purl.org/rss/1.0/modules/content/",
+    }
+
+    for feed in feeds:
+        feed_name = feed.get("name", "Unknown")
+        feed_url = feed.get("url", "")
+        if not feed_url:
+            continue
+
+        print("  Fetching Craigslist feed: {}...".format(feed_name))
+        try:
+            req = urllib.request.Request(feed_url, headers={
+                "User-Agent": "MATransportTracker/2.0",
+                "Accept": "application/rss+xml, application/xml, text/xml",
+            })
+            with urllib.request.urlopen(req, context=ctx, timeout=30) as resp:
+                xml_bytes = resp.read()
+
+            root = ET.fromstring(xml_bytes)
+
+            # Handle both standard RSS and RDF formats
+            items = root.findall(".//item")
+            if not items:
+                items = root.findall(".//{http://purl.org/rss/1.0/}item")
+
+            feed_count = 0
+            for item in items:
+                # Extract title
+                title_el = item.find("title")
+                if title_el is None:
+                    title_el = item.find("{http://purl.org/rss/1.0/}title")
+                title = title_el.text if title_el is not None and title_el.text else ""
+
+                # Extract link
+                link_el = item.find("link")
+                if link_el is None:
+                    link_el = item.find("{http://purl.org/rss/1.0/}link")
+                link = link_el.text if link_el is not None and link_el.text else ""
+                if not link:
+                    link = item.get("{http://www.w3.org/1999/02/22-rdf-syntax-ns#}about", "")
+
+                if not link or link in seen_links:
+                    continue
+                seen_links.add(link)
+
+                # Extract description
+                desc_el = item.find("description")
+                if desc_el is None:
+                    desc_el = item.find("{http://purl.org/rss/1.0/}description")
+                raw_desc = desc_el.text if desc_el is not None and desc_el.text else ""
+                description = strip_html_tags(raw_desc)
+
+                # Extract date
+                date_el = item.find("{http://purl.org/dc/elements/1.1/}date")
+                if date_el is None:
+                    date_el = item.find("pubDate")
+                date_str = date_el.text if date_el is not None and date_el.text else ""
+
+                # Keyword matching
+                search_text = "{} {}".format(title, description)
+                if contains_excluded(search_text, exclude_kw):
+                    continue
+
+                matched = match_keywords(search_text, all_keywords)
+                if not matched:
+                    continue
+
+                opp_id = stable_id("cl", link)
+                service_type = classify_service_type(search_text, matched)
+
+                matched_direct = match_keywords(search_text, direct_kw)
+                relevance = "high" if matched_direct else "medium"
+
+                opportunities.append({
+                    "id": opp_id,
+                    "title": title[:200],
+                    "solicitation_number": "",
+                    "agency": "Craigslist - {}".format(feed.get("category", "general").title()),
+                    "posted_date": format_date_display(date_str),
+                    "response_deadline": "",
+                    "naics_code": "",
+                    "award_amount": 0,
+                    "place_of_performance": "Boston Area, MA",
+                    "description": description[:500],
+                    "contact_name": "",
+                    "contact_email": "",
+                    "contact_phone": "",
+                    "url": link,
+                    "keywords_matched": matched,
+                    "relevance": relevance,
+                    "service_type": service_type,
+                    "source": "Craigslist",
+                    "sector": "private",
+                    "opportunity_type": "job_posting",
+                    "status": "active",
+                    "is_new": False,
+                    "notes": "Found via Craigslist RSS feed: {}".format(feed_name),
+                })
+                feed_count += 1
+
+            print("    Found {} matching postings".format(feed_count))
+
+        except Exception as e:
+            print("    Error fetching {}: {}".format(feed_name, e))
+
+        time.sleep(2)
+
+    return opportunities
+
+
+# ---------------------------------------------------------------------------
+# Indeed RSS integration
+# ---------------------------------------------------------------------------
+
+def fetch_indeed_opportunities(config):
+    """Fetch transport job postings from Indeed RSS feeds.
+
+    Designed to fail gracefully -- Indeed RSS is unreliable and may return
+    403 or redirect to HTML. Returns [] if unavailable.
+    """
+    feeds = config.get("indeed_feeds", [])
+    if not feeds:
+        print("  No Indeed feeds configured.")
+        return []
+
+    direct_kw = config.get("direct_transport_keywords", [])
+    service_kw = config.get("service_type_keywords", [])
+    private_kw = config.get("private_sector_keywords", [])
+    exclude_kw = config.get("exclude_keywords", [])
+    all_keywords = direct_kw + service_kw + private_kw
+
+    ctx = ssl.create_default_context()
+    opportunities = []
+    seen_links = set()
+
+    for feed in feeds:
+        feed_name = feed.get("name", "Unknown")
+        feed_url = feed.get("url", "")
+        if not feed_url:
+            continue
+
+        print("  Fetching Indeed feed: {}...".format(feed_name))
+        try:
+            req = urllib.request.Request(feed_url, headers={
+                "User-Agent": "MATransportTracker/2.0",
+                "Accept": "application/rss+xml, application/xml, text/xml",
+            })
+            with urllib.request.urlopen(req, context=ctx, timeout=30) as resp:
+                content_type = resp.headers.get("Content-Type", "")
+                # Indeed may redirect to HTML -- check Content-Type
+                if "html" in content_type.lower() and "xml" not in content_type.lower():
+                    print("    Indeed returned HTML (not RSS), skipping feed")
+                    continue
+                xml_bytes = resp.read()
+
+            root = ET.fromstring(xml_bytes)
+            items = root.findall(".//item")
+
+            feed_count = 0
+            for item in items:
+                title_el = item.find("title")
+                title = title_el.text if title_el is not None and title_el.text else ""
+
+                link_el = item.find("link")
+                link = link_el.text if link_el is not None and link_el.text else ""
+                if not link or link in seen_links:
+                    continue
+                seen_links.add(link)
+
+                desc_el = item.find("description")
+                raw_desc = desc_el.text if desc_el is not None and desc_el.text else ""
+                description = strip_html_tags(raw_desc)
+
+                date_el = item.find("pubDate")
+                date_str = date_el.text if date_el is not None and date_el.text else ""
+
+                # Keyword matching
+                search_text = "{} {}".format(title, description)
+                if contains_excluded(search_text, exclude_kw):
+                    continue
+
+                matched = match_keywords(search_text, all_keywords)
+                if not matched:
+                    continue
+
+                opp_id = stable_id("indeed", link)
+                service_type = classify_service_type(search_text, matched)
+
+                matched_direct = match_keywords(search_text, direct_kw)
+                relevance = "high" if matched_direct else "medium"
+
+                opportunities.append({
+                    "id": opp_id,
+                    "title": title[:200],
+                    "solicitation_number": "",
+                    "agency": "Indeed - {}".format(feed.get("category", "general").title()),
+                    "posted_date": format_date_display(date_str),
+                    "response_deadline": "",
+                    "naics_code": "",
+                    "award_amount": 0,
+                    "place_of_performance": "Massachusetts",
+                    "description": description[:500],
+                    "contact_name": "",
+                    "contact_email": "",
+                    "contact_phone": "",
+                    "url": link,
+                    "keywords_matched": matched,
+                    "relevance": relevance,
+                    "service_type": service_type,
+                    "source": "Indeed",
+                    "sector": "private",
+                    "opportunity_type": "job_posting",
+                    "status": "active",
+                    "is_new": False,
+                    "notes": "Found via Indeed RSS feed: {}".format(feed_name),
+                })
+                feed_count += 1
+
+            print("    Found {} matching postings".format(feed_count))
+
+        except Exception as e:
+            print("    Error fetching {} (expected - Indeed RSS is unreliable): {}".format(feed_name, e))
+
+        time.sleep(2)
+
+    return opportunities
+
+
+# ---------------------------------------------------------------------------
+# Private directory checks
+# ---------------------------------------------------------------------------
+
+def check_directory_entries(config):
+    """Check reachability of private directory entries and return as opportunities.
+
+    Performs HTTP HEAD request to each URL to verify reachability.
+    Returns standardized opportunity dicts.
+    """
+    directory = config.get("private_directory", [])
+    if not directory:
+        print("  No private directory entries configured.")
+        return []
+
+    ctx = ssl.create_default_context()
+    opportunities = []
+
+    for entry in directory:
+        name = entry.get("name", "Unknown")
+        url = entry.get("url", "")
+        if not url:
+            continue
+
+        # Check reachability via HEAD request
+        status = "active"
+        print("  Checking directory: {}...".format(name))
+        try:
+            req = urllib.request.Request(url, method="HEAD", headers={
+                "User-Agent": "MATransportTracker/2.0",
+            })
+            with urllib.request.urlopen(req, context=ctx, timeout=10) as resp:
+                if resp.status < 400:
+                    status = "active"
+                else:
+                    status = "unverified"
+        except Exception:
+            status = "unverified"
+
+        print("    Status: {}".format(status))
+
+        opp_id = stable_id("dir", url)
+        category = entry.get("category", "Other")
+        description = entry.get("description", "")
+        requirements = entry.get("requirements", "")
+        earning = entry.get("earning_potential", "")
+
+        full_desc = description
+        if requirements:
+            full_desc += " | Requirements: " + requirements
+        if earning:
+            full_desc += " | Earning Potential: " + earning
+
+        # Classify service type based on category
+        category_to_service = {
+            "Last-Mile": "Last-Mile Delivery",
+            "Freight": "Freight",
+            "Rideshare/Gig": "Rideshare/Gig",
+            "NEMT": "NEMT",
+        }
+        service_type = category_to_service.get(category, "Other Transport")
+
+        # Determine opportunity type from category
+        category_to_opp_type = {
+            "Last-Mile": "partnership",
+            "Freight": "contract",
+            "Rideshare/Gig": "gig",
+            "NEMT": "contract",
+        }
+        opp_type = category_to_opp_type.get(category, "partnership")
+
+        opportunities.append({
+            "id": opp_id,
+            "title": name,
+            "solicitation_number": "",
+            "agency": name,
+            "posted_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            "response_deadline": "",
+            "naics_code": "",
+            "award_amount": 0,
+            "place_of_performance": "Massachusetts",
+            "description": full_desc,
+            "contact_name": "",
+            "contact_email": "",
+            "contact_phone": "",
+            "url": url,
+            "keywords_matched": [category.lower()],
+            "relevance": "medium",
+            "service_type": service_type,
+            "source": "Directory",
+            "sector": "private",
+            "opportunity_type": opp_type,
+            "status": status,
+            "is_new": False,
+            "notes": "Category: {} | Earning: {}".format(category, earning),
+        })
+
+    return opportunities
+
+
+# ---------------------------------------------------------------------------
 # Processing and scoring
 # ---------------------------------------------------------------------------
 
 def score_relevance(matched_direct, matched_service, award_amount, auto_high_value):
-    """Score relevance: 'high', 'medium', or 'low'.
-
-    High: direct keyword match OR award >= auto_high_value
-    Medium: service type keyword match
-    Low: NAICS match only
-    """
+    """Score relevance: 'high', 'medium', or 'low'."""
     try:
         amount = float(award_amount) if award_amount else 0
     except (ValueError, TypeError):
@@ -222,7 +587,7 @@ def classify_service_type(text, matched_keywords):
     """Classify opportunity into a service type category.
 
     Returns one of: NEMT, Courier/Delivery, Paratransit, Shuttle/Charter,
-    Logistics, Other Transport
+    Logistics, Freight, Rideshare/Gig, Last-Mile Delivery, Other Transport
     """
     if not text:
         text = ""
@@ -231,7 +596,8 @@ def classify_service_type(text, matched_keywords):
     combined = lower + " " + kw_str
 
     nemt_terms = ["nemt", "non-emergency medical", "medical transport",
-                  "patient transport", "medicaid transport", "medical transportation"]
+                  "patient transport", "medicaid transport", "medical transportation",
+                  "nemt provider", "modivcare", "mtm", "veyo"]
     if any(t in combined for t in nemt_terms):
         return "NEMT"
 
@@ -239,6 +605,25 @@ def classify_service_type(text, matched_keywords):
                   "ambulatory", "ada transport"]
     if any(t in combined for t in para_terms):
         return "Paratransit"
+
+    freight_terms = ["freight", "trucking", "cdl", "ltl", "truckload",
+                     "owner operator", "xpo", "uber freight", "fedex ground",
+                     "box truck", "tractor trailer", "18 wheel"]
+    if any(t in combined for t in freight_terms):
+        return "Freight"
+
+    rideshare_terms = ["rideshare", "ride-share", "uber", "lyft", "doordash",
+                       "instacart", "grubhub", "gig", "food delivery",
+                       "grocery delivery"]
+    if any(t in combined for t in rideshare_terms):
+        return "Rideshare/Gig"
+
+    lastmile_terms = ["last-mile", "last mile", "amazon flex", "amazon dsp",
+                      "delivery partner", "delivery service partner",
+                      "parcel delivery", "package delivery", "sprinter van",
+                      "cargo van", "delivery route"]
+    if any(t in combined for t in lastmile_terms):
+        return "Last-Mile Delivery"
 
     courier_terms = ["courier", "delivery", "specimen", "laboratory",
                      "pharmacy"]
@@ -257,10 +642,7 @@ def classify_service_type(text, matched_keywords):
 
 
 def process_sam_opportunities(raw_opps, config):
-    """Process raw SAM.gov results: filter exclusions, match keywords, score.
-
-    Returns list of standardized opportunity dicts.
-    """
+    """Process raw SAM.gov results: filter exclusions, match keywords, score."""
     direct_kw = config.get("direct_transport_keywords", [])
     service_kw = config.get("service_type_keywords", [])
     exclude_kw = config.get("exclude_keywords", [])
@@ -270,7 +652,6 @@ def process_sam_opportunities(raw_opps, config):
     for opp in raw_opps:
         title = opp.get("title", "") or ""
         description = opp.get("description", "") or ""
-        # Build searchable text
         search_text = " ".join([
             title,
             description,
@@ -278,14 +659,12 @@ def process_sam_opportunities(raw_opps, config):
             opp.get("placeOfPerformance", {}).get("state", {}).get("name", "") if isinstance(opp.get("placeOfPerformance"), dict) else "",
         ])
 
-        # Check exclusions
         if contains_excluded(search_text, exclude_kw):
             continue
 
         matched_direct = match_keywords(search_text, direct_kw)
         matched_service = match_keywords(search_text, service_kw)
 
-        # Award amount
         award_raw = opp.get("award", {})
         award_amount = 0
         if isinstance(award_raw, dict):
@@ -300,7 +679,6 @@ def process_sam_opportunities(raw_opps, config):
         all_matched = matched_direct + matched_service
         service_type = classify_service_type(search_text, all_matched)
 
-        # Place of performance
         pop = opp.get("placeOfPerformance", {})
         pop_str = ""
         if isinstance(pop, dict):
@@ -312,7 +690,6 @@ def process_sam_opportunities(raw_opps, config):
         if not pop_str:
             pop_str = "Massachusetts"
 
-        # Contact info
         contact = opp.get("pointOfContact", [])
         contact_name = ""
         contact_email = ""
@@ -349,6 +726,8 @@ def process_sam_opportunities(raw_opps, config):
             "relevance": relevance,
             "service_type": service_type,
             "source": "SAM.gov",
+            "sector": "public",
+            "opportunity_type": "contract",
             "status": "active",
             "is_new": False,
             "notes": "",
@@ -358,10 +737,7 @@ def process_sam_opportunities(raw_opps, config):
 
 
 def process_manual_opportunities(entries, config):
-    """Process manual opportunity entries through the same pipeline.
-
-    Returns list of standardized opportunity dicts.
-    """
+    """Process manual opportunity entries through the same pipeline."""
     direct_kw = config.get("direct_transport_keywords", [])
     service_kw = config.get("service_type_keywords", [])
     exclude_kw = config.get("exclude_keywords", [])
@@ -406,6 +782,8 @@ def process_manual_opportunities(entries, config):
             "relevance": relevance,
             "service_type": service_type,
             "source": "Manual",
+            "sector": entry.get("sector", "public"),
+            "opportunity_type": entry.get("opportunity_type", "contract"),
             "status": entry.get("status", "active"),
             "is_new": False,
             "notes": entry.get("notes", ""),
@@ -450,8 +828,8 @@ CSV_COLUMNS = [
     "id", "title", "solicitation_number", "agency", "posted_date",
     "response_deadline", "naics_code", "award_amount", "place_of_performance",
     "description", "contact_name", "contact_email", "contact_phone", "url",
-    "keywords_matched", "relevance", "service_type", "source", "status",
-    "is_new", "notes",
+    "keywords_matched", "relevance", "service_type", "source", "sector",
+    "opportunity_type", "status", "is_new", "notes",
 ]
 
 
@@ -463,7 +841,6 @@ def generate_csv(all_opportunities, output_path):
         writer.writeheader()
         for opp in all_opportunities:
             row = dict(opp)
-            # Flatten list fields
             if isinstance(row.get("keywords_matched"), list):
                 row["keywords_matched"] = "; ".join(row["keywords_matched"])
             writer.writerow(row)
@@ -473,8 +850,9 @@ def generate_csv(all_opportunities, output_path):
 # HTML generation
 # ---------------------------------------------------------------------------
 
-def generate_html(all_opportunities, commbuys_links, run_time):
-    """Generate mobile-friendly HTML report with search, filters, and sorting."""
+def generate_html(all_opportunities, commbuys_links, directory_entries, run_time):
+    """Generate mobile-friendly HTML report with search, filters, sector badges,
+    and private sector directory section."""
 
     # Sort: high relevance first, then by award amount descending
     def sort_key(opp):
@@ -490,10 +868,12 @@ def generate_html(all_opportunities, commbuys_links, run_time):
     # Summary stats
     summary_new = sum(1 for o in all_opportunities if o.get("is_new"))
     summary_total = len(all_opportunities)
+    public_count = sum(1 for o in all_opportunities if o.get("sector") == "public")
+    private_count = sum(1 for o in all_opportunities if o.get("sector") == "private")
     sam_count = sum(1 for o in all_opportunities if o.get("source") == "SAM.gov")
-    manual_count = sum(1 for o in all_opportunities if o.get("source") == "Manual")
+    feed_count = sum(1 for o in all_opportunities if o.get("source") in ("Craigslist", "Indeed"))
+    dir_count = sum(1 for o in all_opportunities if o.get("source") == "Directory")
     high_count = sum(1 for o in all_opportunities if o.get("relevance") == "high")
-    active_count = sum(1 for o in all_opportunities if o.get("status", "").lower() == "active")
 
     # Collect service types and statuses for filter dropdowns
     service_types = sorted(set(o.get("service_type", "Other Transport") for o in all_opportunities))
@@ -505,12 +885,79 @@ def generate_html(all_opportunities, commbuys_links, run_time):
         cb_links_html += '<a class="link-btn cb-link" href="{}" target="_blank" rel="noopener">{}</a>\n'.format(
             escape_html(url), escape_html(label))
 
+    # --- Private Directory Section HTML ---
+    dir_section_html = ""
+    if directory_entries:
+        # Group by category
+        categories = {}
+        for entry in directory_entries:
+            cat = entry.get("service_type", "Other")
+            categories.setdefault(cat, []).append(entry)
+
+        dir_cards = ""
+        for cat_name in ["Last-Mile Delivery", "Freight", "Rideshare/Gig", "NEMT", "Other Transport"]:
+            if cat_name not in categories:
+                continue
+            dir_cards += '<h4 class="dir-cat-title">{}</h4>'.format(escape_html(cat_name))
+            dir_cards += '<div class="dir-cat-grid">'
+            for entry in categories[cat_name]:
+                status_dot = "green" if entry.get("status") == "active" else "red"
+                status_label = "Reachable" if entry.get("status") == "active" else "Unverified"
+                earning = ""
+                notes = entry.get("notes", "")
+                if "Earning:" in notes:
+                    earning = notes.split("Earning:")[1].strip()
+
+                dir_cards += (
+                    '<div class="dir-card">'
+                    '<div class="dir-card-header">'
+                    '<strong>{name}</strong>'
+                    '<span class="dir-status" style="color:{dot_color};">'
+                    '&#9679; {status_label}</span>'
+                    '</div>'
+                    '<div class="dir-card-desc">{desc}</div>'
+                    '{earning_html}'
+                    '<div class="dir-card-links">'
+                    '<a class="link-btn dir-link" href="{url}" target="_blank" '
+                    'rel="noopener">Apply / Learn More</a>'
+                    '</div>'
+                    '</div>'
+                ).format(
+                    name=escape_html(entry.get("title", "")),
+                    dot_color=status_dot,
+                    status_label=status_label,
+                    desc=escape_html(str(entry.get("description", ""))[:200]),
+                    earning_html='<div class="dir-card-earning"><strong>Earning Potential:</strong> {}</div>'.format(
+                        escape_html(earning)) if earning else "",
+                    url=escape_html(entry.get("url", "")),
+                )
+            dir_cards += '</div>'
+
+        dir_section_html = (
+            '<details class="directory-section">'
+            '<summary>Private Sector Directory &mdash; {count} curated opportunities</summary>'
+            '<div class="dir-body">{cards}</div>'
+            '</details>'
+        ).format(count=len(directory_entries), cards=dir_cards)
+
     # --- Render cards ---
     def render_card(opp):
         source = opp.get("source", "SAM.gov")
-        is_sam = source == "SAM.gov"
-        source_color = "#2980b9" if is_sam else "#8e44ad"
-        source_label = source
+        sector = opp.get("sector", "public")
+        opp_type = opp.get("opportunity_type", "contract")
+
+        source_colors = {
+            "SAM.gov": "#2980b9",
+            "Manual": "#8e44ad",
+            "Craigslist": "#e67e22",
+            "Indeed": "#c0392b",
+            "Directory": "#16a085",
+        }
+        source_color = source_colors.get(source, "#7f8c8d")
+
+        # Sector badge
+        sector_color = "#2980b9" if sector == "public" else "#e67e22"
+        sector_label = "Public" if sector == "public" else "Private"
 
         rel = opp.get("relevance", "low")
         rel_colors = {"high": "#c0392b", "medium": "#e67e22", "low": "#7f8c8d"}
@@ -523,6 +970,9 @@ def generate_html(all_opportunities, commbuys_links, run_time):
             "Paratransit": "#2c3e50",
             "Shuttle/Charter": "#27ae60",
             "Logistics": "#8e44ad",
+            "Freight": "#c0392b",
+            "Rideshare/Gig": "#e67e22",
+            "Last-Mile Delivery": "#2980b9",
             "Other Transport": "#7f8c8d",
         }
         stype_color = stype_colors.get(stype, "#7f8c8d")
@@ -564,19 +1014,33 @@ def generate_html(all_opportunities, commbuys_links, run_time):
         if contact_parts:
             contact_html = '<div class="card-contact">{}</div>'.format(" &bull; ".join(contact_parts))
 
-        # Links row
+        # Links row -- context-sensitive
         links = []
         if opp.get("url"):
-            link_label = "View on SAM.gov" if is_sam else "View Source"
+            if source == "SAM.gov":
+                link_label = "View on SAM.gov"
+            elif source == "Craigslist":
+                link_label = "View on Craigslist"
+            elif source == "Indeed":
+                link_label = "View on Indeed"
+            elif source == "Directory":
+                link_label = "Apply / Learn More"
+            else:
+                link_label = "View Source"
             links.append('<a class="link-btn" href="{}" target="_blank" rel="noopener">{}</a>'.format(
                 escape_html(opp["url"]), link_label))
 
-        # COMMBUYS search
-        title_q = urllib.parse.quote(opp.get("title", "")[:60])
-        cb_url = "https://www.commbuys.com/bso/external/publicBids.sdo?{}".format(
-            urllib.parse.urlencode({"keywords": opp.get("title", "")[:60]}))
-        links.append('<a class="link-btn" href="{}" target="_blank" rel="noopener">Search COMMBUYS</a>'.format(
-            escape_html(cb_url)))
+        if sector == "public":
+            # COMMBUYS search for public sector
+            cb_url = "https://www.commbuys.com/bso/external/publicBids.sdo?{}".format(
+                urllib.parse.urlencode({"keywords": opp.get("title", "")[:60]}))
+            links.append('<a class="link-btn" href="{}" target="_blank" rel="noopener">Search COMMBUYS</a>'.format(
+                escape_html(cb_url)))
+        else:
+            # Company opportunity search for private sector
+            company_q = urllib.parse.quote('{} careers opportunities Massachusetts'.format(
+                opp.get("agency", "")[:40]))
+            links.append('<a class="link-btn" href="https://www.google.com/search?q={}" target="_blank" rel="noopener">Search Opportunities</a>'.format(company_q))
 
         # Google news search
         search_q = urllib.parse.quote('"{}" Massachusetts transportation'.format(
@@ -602,6 +1066,8 @@ def generate_html(all_opportunities, commbuys_links, run_time):
             opp.get("place_of_performance", ""),
             opp.get("naics_code", ""),
             opp.get("notes", ""),
+            sector,
+            opp_type,
         ]
         search_text = " ".join(search_parts).lower().replace('"', "&quot;")
 
@@ -612,8 +1078,10 @@ def generate_html(all_opportunities, commbuys_links, run_time):
                 escape_html(opp["notes"]))
 
         return (
-            '<div class="opp-card" '
+            '<div class="opp-card{private_class}" '
             'data-source="{data_source}" '
+            'data-sector="{data_sector}" '
+            'data-opportunity-type="{data_opp_type}" '
             'data-relevance="{data_rel}" '
             'data-service-type="{data_stype}" '
             'data-status="{data_status}" '
@@ -625,6 +1093,7 @@ def generate_html(all_opportunities, commbuys_links, run_time):
             '<div class="card-title-row">'
             '<strong class="card-name">{title}</strong>'
             '<div class="card-badges">'
+            '<span class="badge" style="background:{sector_color};">{sector_label}</span>'
             '<span class="badge" style="background:{source_color};">{source_label}</span>'
             '<span class="badge" style="background:{rel_color};">{rel_upper}</span>'
             '<span class="badge" style="background:{stype_color};">{stype}</span>'
@@ -648,7 +1117,10 @@ def generate_html(all_opportunities, commbuys_links, run_time):
             '{links_html}'
             '</div>'
         ).format(
+            private_class=" private-card" if sector == "private" else "",
             data_source=escape_html(source),
+            data_sector=escape_html(sector),
+            data_opp_type=escape_html(opp_type),
             data_rel=escape_html(rel),
             data_stype=escape_html(stype),
             data_status=escape_html(opp.get("status", "active")),
@@ -657,8 +1129,10 @@ def generate_html(all_opportunities, commbuys_links, run_time):
             data_deadline=escape_html(deadline),
             data_search=search_text[:500],
             title=escape_html(opp.get("title", "")[:120]),
+            sector_color=sector_color,
+            sector_label=sector_label,
             source_color=source_color,
-            source_label=escape_html(source_label),
+            source_label=escape_html(source),
             rel_color=rel_color,
             rel_upper=rel.upper(),
             stype_color=stype_color,
@@ -726,14 +1200,14 @@ def generate_html(all_opportunities, commbuys_links, run_time):
         }}
         .stat-num {{ font-size: 1.5em; font-weight: bold; color: #2c3e50; }}
         .stat-label {{ font-size: 0.72em; color: #888; }}
-        .commbuys-section {{
+        .commbuys-section, .directory-section {{
             background: #fff;
             border-radius: 8px;
             padding: 0;
             margin-bottom: 16px;
             border: 1px solid #ddd;
         }}
-        .commbuys-section summary {{
+        .commbuys-section summary, .directory-section summary {{
             padding: 12px;
             cursor: pointer;
             font-weight: 600;
@@ -752,6 +1226,49 @@ def generate_html(all_opportunities, commbuys_links, run_time):
         }}
         .cb-link:hover {{
             background: #8e44ad !important;
+            color: #fff !important;
+        }}
+        /* Directory section */
+        .directory-section {{ border-color: #e67e22; }}
+        .directory-section summary {{ color: #e67e22; }}
+        .dir-body {{ padding: 0 12px 12px; }}
+        .dir-cat-title {{
+            font-size: 0.9em;
+            color: #555;
+            margin: 12px 0 6px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #eee;
+        }}
+        .dir-cat-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 10px;
+        }}
+        .dir-card {{
+            border: 1px solid #eee;
+            border-left: 3px solid #e67e22;
+            border-radius: 6px;
+            padding: 10px;
+            background: #fefefe;
+        }}
+        .dir-card-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 4px;
+        }}
+        .dir-card-header strong {{ font-size: 0.88em; }}
+        .dir-status {{ font-size: 0.75em; white-space: nowrap; }}
+        .dir-card-desc {{ font-size: 0.8em; color: #555; margin-top: 4px; }}
+        .dir-card-earning {{ font-size: 0.8em; color: #27ae60; margin-top: 4px; }}
+        .dir-card-links {{ margin-top: 6px; }}
+        .dir-link {{
+            border-color: #e67e22 !important;
+            color: #e67e22 !important;
+        }}
+        .dir-link:hover {{
+            background: #e67e22 !important;
             color: #fff !important;
         }}
         .toolbar {{
@@ -787,8 +1304,8 @@ def generate_html(all_opportunities, commbuys_links, run_time):
             border-radius: 6px;
             background: #fff;
             outline: none;
-            flex: 1 1 130px;
-            min-width: 110px;
+            flex: 1 1 120px;
+            min-width: 100px;
         }}
         .filter-select:focus {{
             border-color: #2980b9;
@@ -822,11 +1339,11 @@ def generate_html(all_opportunities, commbuys_links, run_time):
             margin-bottom: 12px;
             background: #fff;
         }}
+        .opp-card.private-card {{
+            border-left-color: #e67e22;
+        }}
         .opp-card[data-is-new="true"] {{
             border-left-color: #27ae60;
-        }}
-        .opp-card[data-source="Manual"] {{
-            border-left-color: #8e44ad;
         }}
         .card-header {{
             margin-bottom: 6px;
@@ -939,41 +1456,53 @@ def generate_html(all_opportunities, commbuys_links, run_time):
             .card-title-row {{
                 flex-direction: column;
             }}
+            .dir-cat-grid {{
+                grid-template-columns: 1fr;
+            }}
         }}
     </style>
 </head>
 <body>
     <h1>MA Transportation Opportunity Tracker</h1>
     <p style="color:#888;font-size:0.85em;margin-bottom:12px;">
-        NEMT, courier, paratransit, shuttle &amp; transport contracts in Massachusetts &bull;
+        NEMT, courier, paratransit, shuttle, freight, rideshare &amp; transport opportunities in Massachusetts &bull;
+        Public &amp; Private Sector &bull;
         Updated {run_time} UTC
     </p>
 
     <div class="summary">
         <div class="summary-grid">
             <div class="stat">
-                <div class="stat-num">{summary_new}</div>
-                <div class="stat-label">New This Week</div>
-            </div>
-            <div class="stat">
                 <div class="stat-num">{summary_total}</div>
                 <div class="stat-label">Total Tracked</div>
+            </div>
+            <div class="stat">
+                <div class="stat-num">{summary_new}</div>
+                <div class="stat-label">New This Run</div>
+            </div>
+            <div class="stat">
+                <div class="stat-num">{public_count}</div>
+                <div class="stat-label">Public Sector</div>
+            </div>
+            <div class="stat">
+                <div class="stat-num">{private_count}</div>
+                <div class="stat-label">Private Sector</div>
             </div>
             <div class="stat">
                 <div class="stat-num">{sam_count}</div>
                 <div class="stat-label">SAM.gov</div>
             </div>
             <div class="stat">
-                <div class="stat-num">{manual_count}</div>
-                <div class="stat-label">Manual</div>
+                <div class="stat-num">{feed_count}</div>
+                <div class="stat-label">Job Feeds</div>
+            </div>
+            <div class="stat">
+                <div class="stat-num">{dir_count}</div>
+                <div class="stat-label">Directory</div>
             </div>
             <div class="stat">
                 <div class="stat-num">{high_count}</div>
                 <div class="stat-label">High Relevance</div>
-            </div>
-            <div class="stat">
-                <div class="stat-num">{active_count}</div>
-                <div class="stat-label">Active</div>
             </div>
         </div>
     </div>
@@ -985,14 +1514,24 @@ def generate_html(all_opportunities, commbuys_links, run_time):
         </div>
     </details>
 
+    {dir_section_html}
+
     <div class="toolbar">
         <input type="text" id="searchInput" class="search-input"
-               placeholder="Search title, agency, description, keywords, contact, service type...">
+               placeholder="Search title, agency, description, keywords, sector, type...">
         <div class="filter-row">
+            <select id="filterSector" class="filter-select">
+                <option value="">All Sectors</option>
+                <option value="public">Public</option>
+                <option value="private">Private</option>
+            </select>
             <select id="filterSource" class="filter-select">
                 <option value="">All Sources</option>
                 <option value="SAM.gov">SAM.gov</option>
                 <option value="Manual">Manual</option>
+                <option value="Craigslist">Craigslist</option>
+                <option value="Indeed">Indeed</option>
+                <option value="Directory">Directory</option>
             </select>
             <select id="filterRelevance" class="filter-select">
                 <option value="">All Relevance</option>
@@ -1025,8 +1564,11 @@ def generate_html(all_opportunities, commbuys_links, run_time):
     <div class="no-results" id="noResults">No opportunities match your filters.</div>
 
     <footer style="margin-top:24px;padding-top:12px;border-top:1px solid #ddd;color:#aaa;font-size:0.75em;text-align:center;">
-        Data from <a href="https://sam.gov" style="color:#aaa;">SAM.gov</a> &amp;
-        <a href="https://www.commbuys.com" style="color:#aaa;">COMMBUYS</a> &bull;
+        Data from <a href="https://sam.gov" style="color:#aaa;">SAM.gov</a>,
+        <a href="https://www.commbuys.com" style="color:#aaa;">COMMBUYS</a>,
+        <a href="https://boston.craigslist.org" style="color:#aaa;">Craigslist</a>,
+        <a href="https://www.indeed.com" style="color:#aaa;">Indeed</a>
+        &amp; curated private sector directory &bull;
         MA Transportation Opportunity Tracker
     </footer>
 
@@ -1037,6 +1579,7 @@ def generate_html(all_opportunities, commbuys_links, run_time):
         var noResults = document.getElementById('noResults');
         var countEl = document.getElementById('filterCount');
         var searchInput = document.getElementById('searchInput');
+        var filterSector = document.getElementById('filterSector');
         var filterSource = document.getElementById('filterSource');
         var filterRelevance = document.getElementById('filterRelevance');
         var filterServiceType = document.getElementById('filterServiceType');
@@ -1052,6 +1595,7 @@ def generate_html(all_opportunities, commbuys_links, run_time):
 
         function applyFilters() {{
             var q = searchInput.value.toLowerCase().trim();
+            var sec = filterSector.value;
             var src = filterSource.value;
             var rel = filterRelevance.value;
             var stype = filterServiceType.value;
@@ -1061,6 +1605,7 @@ def generate_html(all_opportunities, commbuys_links, run_time):
             for (var i = 0; i < cards.length; i++) {{
                 var c = cards[i];
                 var visible = true;
+                if (sec && c.getAttribute('data-sector') !== sec) visible = false;
                 if (src && c.getAttribute('data-source') !== src) visible = false;
                 if (rel && c.getAttribute('data-relevance') !== rel) visible = false;
                 if (stype && c.getAttribute('data-service-type') !== stype) visible = false;
@@ -1108,6 +1653,7 @@ def generate_html(all_opportunities, commbuys_links, run_time):
             debounceTimer = setTimeout(update, 200);
         }});
 
+        filterSector.addEventListener('change', update);
         filterSource.addEventListener('change', update);
         filterRelevance.addEventListener('change', update);
         filterServiceType.addEventListener('change', update);
@@ -1120,13 +1666,16 @@ def generate_html(all_opportunities, commbuys_links, run_time):
 </body>
 </html>""".format(
         run_time=run_time.strftime('%B %d, %Y at %I:%M %p'),
-        summary_new=summary_new,
         summary_total=summary_total,
+        summary_new=summary_new,
+        public_count=public_count,
+        private_count=private_count,
         sam_count=sam_count,
-        manual_count=manual_count,
+        feed_count=feed_count,
+        dir_count=dir_count,
         high_count=high_count,
-        active_count=active_count,
         cb_links_html=cb_links_html,
+        dir_section_html=dir_section_html,
         stype_options=stype_options,
         status_options=status_options,
         cards_html=cards_html,
@@ -1140,22 +1689,27 @@ def generate_html(all_opportunities, commbuys_links, run_time):
 
 def main():
     print("MA Transportation Opportunity Tracker")
-    print("=" * 40)
+    print("=" * 50)
 
     # 1. Load config + seen opportunities
     config = load_json(CONFIG_PATH)
     seen = load_json(SEEN_PATH)
     seen_sam_ids = set(seen.get("sam_gov", []))
     seen_manual_ids = set(seen.get("manual", []))
-    print("Config loaded. NAICS codes: {}".format(", ".join(config.get("naics_codes", []))))
+    seen_craigslist_ids = set(seen.get("craigslist", []))
+    seen_indeed_ids = set(seen.get("indeed", []))
+    seen_directory_ids = set(seen.get("directory", []))
+    print("Config loaded. States: {} | NAICS codes: {}".format(
+        ", ".join(config.get("states", [])),
+        ", ".join(config.get("naics_codes", []))))
 
-    # 2. Fetch SAM.gov opportunities (skip if no API key)
-    print("\nFetching SAM.gov opportunities...")
+    # 2. Fetch SAM.gov opportunities
+    print("\n[1/5] Fetching SAM.gov opportunities...")
     raw_sam = fetch_all_sam_opportunities(config)
     print("  Total SAM.gov raw results: {}".format(len(raw_sam)))
 
     # 3. Load manual entries
-    print("\nLoading manual opportunities...")
+    print("\n[2/5] Loading manual opportunities...")
     try:
         manual_entries = load_json(MANUAL_PATH)
         print("  Loaded {} manual entries".format(len(manual_entries)))
@@ -1163,59 +1717,92 @@ def main():
         print("  Could not load manual entries: {}".format(e))
         manual_entries = []
 
-    # 4. Process both sources
-    print("\nProcessing SAM.gov opportunities...")
+    # 4. Fetch Craigslist RSS feeds
+    print("\n[3/5] Fetching Craigslist RSS feeds...")
+    craigslist_opps = fetch_craigslist_opportunities(config)
+    print("  Total Craigslist results: {}".format(len(craigslist_opps)))
+
+    # 5. Fetch Indeed RSS feeds
+    print("\n[4/5] Fetching Indeed RSS feeds...")
+    indeed_opps = fetch_indeed_opportunities(config)
+    print("  Total Indeed results: {}".format(len(indeed_opps)))
+
+    # 6. Check private directory entries
+    print("\n[5/5] Checking private directory entries...")
+    directory_opps = check_directory_entries(config)
+    print("  Total directory entries: {}".format(len(directory_opps)))
+
+    # 7. Process SAM.gov and manual sources
+    print("\nProcessing opportunities...")
     sam_opps = process_sam_opportunities(raw_sam, config)
     print("  {} SAM.gov opportunities after filtering".format(len(sam_opps)))
 
-    print("Processing manual opportunities...")
     manual_opps = process_manual_opportunities(manual_entries, config)
     print("  {} manual opportunities after filtering".format(len(manual_opps)))
 
-    # 5. Combine + mark new/seen
-    all_opps = sam_opps + manual_opps
+    # 8. Mark new/seen across all sources
     sam_opps = identify_new_opportunities(sam_opps, seen_sam_ids)
     manual_opps = identify_new_opportunities(manual_opps, seen_manual_ids)
-    all_opps = sam_opps + manual_opps
+    craigslist_opps = identify_new_opportunities(craigslist_opps, seen_craigslist_ids)
+    indeed_opps = identify_new_opportunities(indeed_opps, seen_indeed_ids)
+    directory_opps = identify_new_opportunities(directory_opps, seen_directory_ids)
+
+    # 9. Combine all sources
+    all_opps = sam_opps + manual_opps + craigslist_opps + indeed_opps + directory_opps
 
     new_sam = sum(1 for o in sam_opps if o.get("is_new"))
     new_manual = sum(1 for o in manual_opps if o.get("is_new"))
-    print("\n  New SAM.gov opportunities: {}".format(new_sam))
-    print("  New manual opportunities: {}".format(new_manual))
+    new_cl = sum(1 for o in craigslist_opps if o.get("is_new"))
+    new_indeed = sum(1 for o in indeed_opps if o.get("is_new"))
+    new_dir = sum(1 for o in directory_opps if o.get("is_new"))
 
-    # 6. Generate COMMBUYS links
+    print("\n  New SAM.gov: {}".format(new_sam))
+    print("  New manual: {}".format(new_manual))
+    print("  New Craigslist: {}".format(new_cl))
+    print("  New Indeed: {}".format(new_indeed))
+    print("  New directory: {}".format(new_dir))
+
+    # 10. Generate COMMBUYS links
     commbuys_links = get_commbuys_search_links(config)
 
-    # 7. Generate HTML
+    # 11. Generate HTML
     run_time = datetime.now(timezone.utc)
     print("\nGenerating HTML report...")
-    html = generate_html(all_opps, commbuys_links, run_time)
+    html = generate_html(all_opps, commbuys_links, directory_opps, run_time)
 
     os.makedirs(os.path.dirname(OUTPUT_HTML), exist_ok=True)
     with open(OUTPUT_HTML, "w", encoding="utf-8") as f:
         f.write(html)
     print("  Report saved to {}".format(OUTPUT_HTML))
 
-    # 8. Generate CSV
+    # 12. Generate CSV
     print("Generating CSV export...")
     generate_csv(all_opps, OUTPUT_CSV)
     print("  CSV saved to {}".format(OUTPUT_CSV))
 
-    # 9. Update seen_opportunities.json
-    all_sam_ids = list(seen_sam_ids | {o["id"] for o in sam_opps})
-    all_manual_ids = list(seen_manual_ids | {o["id"] for o in manual_opps})
-    seen["sam_gov"] = all_sam_ids
-    seen["manual"] = all_manual_ids
+    # 13. Update seen_opportunities.json
+    seen["sam_gov"] = list(seen_sam_ids | {o["id"] for o in sam_opps})
+    seen["manual"] = list(seen_manual_ids | {o["id"] for o in manual_opps})
+    seen["craigslist"] = list(seen_craigslist_ids | {o["id"] for o in craigslist_opps})
+    seen["indeed"] = list(seen_indeed_ids | {o["id"] for o in indeed_opps})
+    seen["directory"] = list(seen_directory_ids | {o["id"] for o in directory_opps})
     seen["last_run"] = run_time.isoformat()
     save_json(SEEN_PATH, seen)
     print("  Updated seen_opportunities.json")
 
-    # 10. Print summary
-    print("\n" + "=" * 40)
+    # 14. Print summary
+    public_count = sum(1 for o in all_opps if o.get("sector") == "public")
+    private_count = sum(1 for o in all_opps if o.get("sector") == "private")
+
+    print("\n" + "=" * 50)
     print("Summary:")
     print("  Total opportunities: {}".format(len(all_opps)))
+    print("  Public sector: {} | Private sector: {}".format(public_count, private_count))
     print("  SAM.gov: {} ({} new)".format(len(sam_opps), new_sam))
     print("  Manual: {} ({} new)".format(len(manual_opps), new_manual))
+    print("  Craigslist: {} ({} new)".format(len(craigslist_opps), new_cl))
+    print("  Indeed: {} ({} new)".format(len(indeed_opps), new_indeed))
+    print("  Directory: {} ({} new)".format(len(directory_opps), new_dir))
     high = sum(1 for o in all_opps if o.get("relevance") == "high")
     med = sum(1 for o in all_opps if o.get("relevance") == "medium")
     low = sum(1 for o in all_opps if o.get("relevance") == "low")
