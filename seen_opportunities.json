@@ -1,27 +1,27 @@
 {
   "sam_gov": [],
   "manual": [
-    "manual-004",
-    "manual-001",
     "manual-002",
-    "manual-003"
+    "manual-003",
+    "manual-004",
+    "manual-001"
   ],
   "craigslist": [],
   "indeed": [],
   "directory": [
-    "dir-7e14e59f4864",
-    "dir-fad54c167538",
-    "dir-9a57c394a4d3",
-    "dir-e35c5922024e",
     "dir-cfc87c23f206",
-    "dir-a99b02a099d3",
+    "dir-ed6ab3afdc4c",
+    "dir-e35c5922024e",
+    "dir-7e14e59f4864",
+    "dir-9a57c394a4d3",
+    "dir-fad54c167538",
+    "dir-ce8d72d372d1",
     "dir-e7f729d547a8",
     "dir-639e75b43f76",
-    "dir-ce8d72d372d1",
-    "dir-ed6ab3afdc4c",
+    "dir-a99b02a099d3",
     "dir-874977e4cc08",
     "dir-f960edd35c18",
     "dir-8a6bc08ffcc9"
   ],
-  "last_run": "2026-02-01T15:41:21.841194+00:00"
+  "last_run": "2026-02-02T13:11:49.737858+00:00"
 }
