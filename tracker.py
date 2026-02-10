@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""MA Transportation Opportunity Tracker.
+"""MA Transportation Opportunity Tracker -- Private Contracting Focus.
 
-Finds NEMT, courier, paratransit, shuttle, freight, rideshare, last-mile
-delivery, and diversified transport opportunities in Massachusetts from both
-government (SAM.gov, COMMBUYS) and private sector sources (Craigslist, Indeed,
-curated directory). Generates a mobile-friendly HTML report and CSV export.
-Uses only Python standard library.
+Finds NEMT, courier, paratransit, shuttle, freight, campus/corporate shuttle,
+medical courier, pharmacy delivery, senior transport, event transport, and
+diversified transport CONTRACT opportunities in Massachusetts from government
+(SAM.gov, COMMBUYS) and private sector sources (Craigslist, Indeed, curated
+directory of 30+ contract providers). Prioritises multi-year and annual
+contracts over hourly/gig work. Generates a mobile-friendly HTML report and
+CSV export.  Uses only Python standard library.
 """
 
 import json
@@ -224,8 +226,9 @@ def fetch_craigslist_opportunities(config):
     direct_kw = config.get("direct_transport_keywords", [])
     service_kw = config.get("service_type_keywords", [])
     private_kw = config.get("private_sector_keywords", [])
+    contract_kw = config.get("contract_keywords", [])
     exclude_kw = config.get("exclude_keywords", [])
-    all_keywords = direct_kw + service_kw + private_kw
+    all_keywords = direct_kw + service_kw + private_kw + contract_kw
 
     ctx = ssl.create_default_context()
     opportunities = []
@@ -306,7 +309,19 @@ def fetch_craigslist_opportunities(config):
                 service_type = classify_service_type(search_text, matched)
 
                 matched_direct = match_keywords(search_text, direct_kw)
-                relevance = "high" if matched_direct else "medium"
+                matched_cl_contract = match_keywords(search_text, contract_kw)
+
+                # Determine opportunity type -- contract-oriented feeds get contract type
+                cl_opp_type = "job_posting"
+                if feed.get("category") in ("contract", "shuttle") or matched_cl_contract:
+                    cl_opp_type = "contract"
+
+                relevance = score_relevance(matched_direct,
+                                            match_keywords(search_text, service_kw),
+                                            0, config.get("auto_high_value", 500000),
+                                            matched_cl_contract, cl_opp_type)
+
+                engagement = classify_engagement_model(search_text, service_type, cl_opp_type)
 
                 opportunities.append({
                     "id": opp_id,
@@ -328,7 +343,8 @@ def fetch_craigslist_opportunities(config):
                     "service_type": service_type,
                     "source": "Craigslist",
                     "sector": "private",
-                    "opportunity_type": "job_posting",
+                    "opportunity_type": cl_opp_type,
+                    "engagement_model": engagement,
                     "status": "active",
                     "is_new": False,
                     "notes": "Found via Craigslist RSS feed: {}".format(feed_name),
@@ -363,8 +379,9 @@ def fetch_indeed_opportunities(config):
     direct_kw = config.get("direct_transport_keywords", [])
     service_kw = config.get("service_type_keywords", [])
     private_kw = config.get("private_sector_keywords", [])
+    contract_kw = config.get("contract_keywords", [])
     exclude_kw = config.get("exclude_keywords", [])
-    all_keywords = direct_kw + service_kw + private_kw
+    all_keywords = direct_kw + service_kw + private_kw + contract_kw
 
     ctx = ssl.create_default_context()
     opportunities = []
@@ -424,7 +441,18 @@ def fetch_indeed_opportunities(config):
                 service_type = classify_service_type(search_text, matched)
 
                 matched_direct = match_keywords(search_text, direct_kw)
-                relevance = "high" if matched_direct else "medium"
+                matched_ind_contract = match_keywords(search_text, contract_kw)
+
+                ind_opp_type = "job_posting"
+                if feed.get("category") in ("contract", "fleet", "medical_courier") or matched_ind_contract:
+                    ind_opp_type = "contract"
+
+                relevance = score_relevance(matched_direct,
+                                            match_keywords(search_text, service_kw),
+                                            0, config.get("auto_high_value", 500000),
+                                            matched_ind_contract, ind_opp_type)
+
+                engagement = classify_engagement_model(search_text, service_type, ind_opp_type)
 
                 opportunities.append({
                     "id": opp_id,
@@ -446,7 +474,8 @@ def fetch_indeed_opportunities(config):
                     "service_type": service_type,
                     "source": "Indeed",
                     "sector": "private",
-                    "opportunity_type": "job_posting",
+                    "opportunity_type": ind_opp_type,
+                    "engagement_model": engagement,
                     "status": "active",
                     "is_new": False,
                     "notes": "Found via Indeed RSS feed: {}".format(feed_name),
@@ -522,17 +551,47 @@ def check_directory_entries(config):
             "Freight": "Freight",
             "Rideshare/Gig": "Rideshare/Gig",
             "NEMT": "NEMT",
+            "Paratransit": "Paratransit",
+            "Shuttle/Charter": "Shuttle/Charter",
+            "Hospital Shuttle": "Hospital Shuttle",
+            "Campus Shuttle": "Campus Shuttle",
+            "Corporate Shuttle": "Corporate Shuttle",
+            "Airport": "Airport Transport",
+            "Event Transport": "Event Transport",
+            "Medical Courier": "Medical Courier",
+            "Pharmacy Delivery": "Pharmacy Delivery",
+            "Senior Transport": "Senior Transport",
         }
         service_type = category_to_service.get(category, "Other Transport")
 
-        # Determine opportunity type from category
-        category_to_opp_type = {
-            "Last-Mile": "partnership",
-            "Freight": "contract",
-            "Rideshare/Gig": "gig",
-            "NEMT": "contract",
-        }
-        opp_type = category_to_opp_type.get(category, "partnership")
+        # Determine opportunity type from category and subcategory
+        subcategory = entry.get("subcategory", "")
+        if subcategory == "contract":
+            opp_type = "contract"
+        else:
+            category_to_opp_type = {
+                "Last-Mile": "partnership",
+                "Freight": "contract",
+                "Rideshare/Gig": "gig",
+                "NEMT": "contract",
+                "Paratransit": "contract",
+                "Shuttle/Charter": "contract",
+                "Hospital Shuttle": "contract",
+                "Campus Shuttle": "contract",
+                "Corporate Shuttle": "contract",
+                "Airport": "contract",
+                "Event Transport": "contract",
+                "Medical Courier": "contract",
+                "Pharmacy Delivery": "contract",
+                "Senior Transport": "contract",
+            }
+            opp_type = category_to_opp_type.get(category, "partnership")
+
+        contract_model = entry.get("contract_model", "")
+
+        # Determine engagement model and relevance
+        engagement = classify_engagement_model(full_desc, service_type, opp_type)
+        dir_relevance = "high" if opp_type == "contract" else "medium"
 
         opportunities.append({
             "id": opp_id,
@@ -550,14 +609,18 @@ def check_directory_entries(config):
             "contact_phone": "",
             "url": url,
             "keywords_matched": [category.lower()],
-            "relevance": "medium",
+            "relevance": dir_relevance,
             "service_type": service_type,
             "source": "Directory",
             "sector": "private",
             "opportunity_type": opp_type,
+            "engagement_model": engagement,
+            "contract_model": contract_model,
             "status": status,
             "is_new": False,
-            "notes": "Category: {} | Earning: {}".format(category, earning),
+            "notes": "Category: {} | Earning: {}{}".format(
+                category, earning,
+                " | Contract: {}".format(contract_model) if contract_model else ""),
         })
 
     return opportunities
@@ -567,8 +630,12 @@ def check_directory_entries(config):
 # Processing and scoring
 # ---------------------------------------------------------------------------
 
-def score_relevance(matched_direct, matched_service, award_amount, auto_high_value):
-    """Score relevance: 'high', 'medium', or 'low'."""
+def score_relevance(matched_direct, matched_service, award_amount, auto_high_value,
+                     matched_contract=None, opportunity_type=""):
+    """Score relevance: 'high', 'medium', or 'low'.
+
+    Contracts and high-value opportunities are boosted over gig/hourly work.
+    """
     try:
         amount = float(award_amount) if award_amount else 0
     except (ValueError, TypeError):
@@ -578,6 +645,13 @@ def score_relevance(matched_direct, matched_service, award_amount, auto_high_val
         return "high"
     if amount >= auto_high_value:
         return "high"
+    # Boost: contract keywords or contract opportunity type -> high
+    if matched_contract and opportunity_type in ("contract", "partnership"):
+        return "high"
+    if amount >= 100000 and opportunity_type == "contract":
+        return "high"
+    if matched_contract:
+        return "medium"
     if matched_service:
         return "medium"
     return "low"
@@ -586,8 +660,10 @@ def score_relevance(matched_direct, matched_service, award_amount, auto_high_val
 def classify_service_type(text, matched_keywords):
     """Classify opportunity into a service type category.
 
-    Returns one of: NEMT, Courier/Delivery, Paratransit, Shuttle/Charter,
-    Logistics, Freight, Rideshare/Gig, Last-Mile Delivery, Other Transport
+    Returns one of: NEMT, Medical Courier, Pharmacy Delivery, Paratransit,
+    Senior Transport, Campus Shuttle, Corporate Shuttle, Hospital Shuttle,
+    Airport Transport, Event Transport, Courier/Delivery, Shuttle/Charter,
+    Logistics, Freight, Last-Mile Delivery, Rideshare/Gig, Other Transport
     """
     if not text:
         text = ""
@@ -601,14 +677,70 @@ def classify_service_type(text, matched_keywords):
     if any(t in combined for t in nemt_terms):
         return "NEMT"
 
+    # Medical courier (before general courier)
+    med_courier_terms = ["specimen", "laboratory", "lab courier", "medical courier",
+                         "quest diagnostics", "labcorp", "specimen courier",
+                         "pathology", "blood sample"]
+    if any(t in combined for t in med_courier_terms):
+        return "Medical Courier"
+
+    # Pharmacy delivery (before general courier)
+    pharma_terms = ["pharmacy delivery", "pharmaceutical", "medication delivery",
+                    "omnicare", "long-term care delivery", "nursing home delivery",
+                    "prescription delivery", "rx delivery"]
+    if any(t in combined for t in pharma_terms):
+        return "Pharmacy Delivery"
+
     para_terms = ["paratransit", "dial-a-ride", "wheelchair", "stretcher",
-                  "ambulatory", "ada transport"]
+                  "ambulatory", "ada transport", "the ride", "demand-response"]
     if any(t in combined for t in para_terms):
         return "Paratransit"
 
+    # Senior transport (before general shuttle)
+    senior_terms = ["senior transport", "elder", "aging", "older americans",
+                    "title iii", "adult day", "senior services",
+                    "council on aging", "eldercare"]
+    if any(t in combined for t in senior_terms):
+        return "Senior Transport"
+
+    # Hospital shuttle (before general shuttle)
+    hospital_terms = ["hospital shuttle", "patient shuttle", "inter-facility",
+                      "inter-campus", "medical center", "health system",
+                      "healthcare shuttle", "hospital transport",
+                      "mass general", "brigham", "beth israel", "tufts med"]
+    if any(t in combined for t in hospital_terms):
+        return "Hospital Shuttle"
+
+    # Campus shuttle (before general shuttle)
+    campus_terms = ["campus shuttle", "university shuttle", "college shuttle",
+                    "bu shuttle", "harvard shuttle", "mit shuttle",
+                    "safe ride", "campus transport", "northeastern"]
+    if any(t in combined for t in campus_terms):
+        return "Campus Shuttle"
+
+    # Corporate shuttle (before general shuttle)
+    corp_terms = ["corporate shuttle", "employee shuttle", "biotech shuttle",
+                  "biogen", "moderna", "sanofi", "takeda", "company shuttle",
+                  "office shuttle", "commuter shuttle"]
+    if any(t in combined for t in corp_terms):
+        return "Corporate Shuttle"
+
+    # Airport transport
+    airport_terms = ["airport", "massport", "logan", "terminal shuttle",
+                     "airline", "tsa", "ground transportation"]
+    if any(t in combined for t in airport_terms):
+        return "Airport Transport"
+
+    # Event transport
+    event_terms = ["convention", "event transport", "exhibition", "conference",
+                   "bcec", "hynes", "mcca", "event shuttle", "vip transport"]
+    if any(t in combined for t in event_terms):
+        return "Event Transport"
+
     freight_terms = ["freight", "trucking", "cdl", "ltl", "truckload",
                      "owner operator", "xpo", "uber freight", "fedex ground",
-                     "box truck", "tractor trailer", "18 wheel"]
+                     "box truck", "tractor trailer", "18 wheel", "towing",
+                     "vehicle transport", "car hauling"]
     if any(t in combined for t in freight_terms):
         return "Freight"
 
@@ -625,12 +757,11 @@ def classify_service_type(text, matched_keywords):
     if any(t in combined for t in lastmile_terms):
         return "Last-Mile Delivery"
 
-    courier_terms = ["courier", "delivery", "specimen", "laboratory",
-                     "pharmacy"]
+    courier_terms = ["courier", "delivery"]
     if any(t in combined for t in courier_terms):
         return "Courier/Delivery"
 
-    shuttle_terms = ["shuttle", "airport", "charter", "passenger", "van service"]
+    shuttle_terms = ["shuttle", "charter", "passenger", "van service"]
     if any(t in combined for t in shuttle_terms):
         return "Shuttle/Charter"
 
@@ -641,10 +772,67 @@ def classify_service_type(text, matched_keywords):
     return "Other Transport"
 
 
+def classify_engagement_model(text, service_type, opportunity_type=""):
+    """Classify how the work is structured: contract, gig, or hybrid.
+
+    'contract' = dedicated routes, annual agreements, multi-year, RFP-based
+    'gig' = per-trip, per-hour, app-based, on-demand individual work
+    'hybrid' = mix (e.g. fleet provider on a platform)
+    """
+    if not text:
+        text = ""
+    lower = text.lower()
+
+    contract_signals = [
+        "rfp", "rfq", "rfi", "bid", "solicitation", "procurement",
+        "multi-year", "annual contract", "service agreement", "dedicated route",
+        "fleet contract", "exclusive", "preferred provider", "guaranteed volume",
+        "fixed route", "scheduled service", "subcontract", "master agreement",
+        "task order", "statement of work", "performance period", "retainer",
+        "contract", "provider network", "annual", "concession",
+    ]
+    gig_signals = [
+        "per hour", "/hour", "hourly", "gig", "app-based", "on-demand",
+        "flexible schedule", "per trip", "per delivery", "sign up",
+        "doordash", "instacart", "grubhub", "uber driver", "lyft driver",
+        "dasher", "shopper", "flex driver",
+    ]
+
+    contract_score = sum(1 for s in contract_signals if s in lower)
+    gig_score = sum(1 for s in gig_signals if s in lower)
+
+    if opportunity_type in ("contract", "partnership"):
+        contract_score += 3
+    if opportunity_type == "gig":
+        gig_score += 3
+
+    # Service types that are inherently contract-based
+    contract_service_types = {
+        "Hospital Shuttle", "Campus Shuttle", "Corporate Shuttle",
+        "Airport Transport", "Event Transport", "Medical Courier",
+        "Pharmacy Delivery", "Senior Transport", "Paratransit",
+    }
+    if service_type in contract_service_types:
+        contract_score += 2
+
+    if contract_score > 0 and gig_score > 0:
+        if contract_score > gig_score:
+            return "contract"
+        if gig_score > contract_score:
+            return "gig"
+        return "hybrid"
+    if contract_score > 0:
+        return "contract"
+    if gig_score > 0:
+        return "gig"
+    return "contract" if opportunity_type == "contract" else "unknown"
+
+
 def process_sam_opportunities(raw_opps, config):
     """Process raw SAM.gov results: filter exclusions, match keywords, score."""
     direct_kw = config.get("direct_transport_keywords", [])
     service_kw = config.get("service_type_keywords", [])
+    contract_kw = config.get("contract_keywords", [])
     exclude_kw = config.get("exclude_keywords", [])
     auto_high = config.get("auto_high_value", 500000)
     processed = []
@@ -664,6 +852,7 @@ def process_sam_opportunities(raw_opps, config):
 
         matched_direct = match_keywords(search_text, direct_kw)
         matched_service = match_keywords(search_text, service_kw)
+        matched_contract = match_keywords(search_text, contract_kw)
 
         award_raw = opp.get("award", {})
         award_amount = 0
@@ -675,8 +864,9 @@ def process_sam_opportunities(raw_opps, config):
             except (ValueError, TypeError):
                 award_amount = 0
 
-        relevance = score_relevance(matched_direct, matched_service, award_amount, auto_high)
-        all_matched = matched_direct + matched_service
+        relevance = score_relevance(matched_direct, matched_service, award_amount,
+                                    auto_high, matched_contract, "contract")
+        all_matched = matched_direct + matched_service + matched_contract
         service_type = classify_service_type(search_text, all_matched)
 
         pop = opp.get("placeOfPerformance", {})
@@ -707,6 +897,8 @@ def process_sam_opportunities(raw_opps, config):
         notice_id = opp.get("noticeId", "")
         sol_number = opp.get("solicitationNumber", "") or ""
 
+        engagement = classify_engagement_model(search_text, service_type, "contract")
+
         processed.append({
             "id": notice_id,
             "title": title,
@@ -728,6 +920,7 @@ def process_sam_opportunities(raw_opps, config):
             "source": "SAM.gov",
             "sector": "public",
             "opportunity_type": "contract",
+            "engagement_model": engagement,
             "status": "active",
             "is_new": False,
             "notes": "",
@@ -740,6 +933,7 @@ def process_manual_opportunities(entries, config):
     """Process manual opportunity entries through the same pipeline."""
     direct_kw = config.get("direct_transport_keywords", [])
     service_kw = config.get("service_type_keywords", [])
+    contract_kw = config.get("contract_keywords", [])
     exclude_kw = config.get("exclude_keywords", [])
     auto_high = config.get("auto_high_value", 500000)
     processed = []
@@ -757,11 +951,15 @@ def process_manual_opportunities(entries, config):
 
         matched_direct = match_keywords(search_text, direct_kw)
         matched_service = match_keywords(search_text, service_kw)
-        all_matched = matched_direct + matched_service
+        matched_contract = match_keywords(search_text, contract_kw)
+        all_matched = matched_direct + matched_service + matched_contract
 
         award_amount = entry.get("award_amount", 0) or 0
-        relevance = score_relevance(matched_direct, matched_service, award_amount, auto_high)
+        opp_type = entry.get("opportunity_type", "contract")
+        relevance = score_relevance(matched_direct, matched_service, award_amount,
+                                    auto_high, matched_contract, opp_type)
         service_type = classify_service_type(search_text, all_matched)
+        engagement = classify_engagement_model(search_text, service_type, opp_type)
 
         processed.append({
             "id": entry.get("id", ""),
@@ -783,7 +981,8 @@ def process_manual_opportunities(entries, config):
             "service_type": service_type,
             "source": "Manual",
             "sector": entry.get("sector", "public"),
-            "opportunity_type": entry.get("opportunity_type", "contract"),
+            "opportunity_type": opp_type,
+            "engagement_model": engagement,
             "status": entry.get("status", "active"),
             "is_new": False,
             "notes": entry.get("notes", ""),
@@ -812,6 +1011,12 @@ def get_commbuys_search_links(config):
         ("Patient Transport", "patient transport"),
         ("Wheelchair Van", "wheelchair van service"),
         ("Fleet Services", "fleet management transportation"),
+        ("Campus Shuttle", "campus shuttle transportation university"),
+        ("Medical Courier", "medical specimen courier laboratory"),
+        ("Pharmacy Delivery", "pharmacy delivery long-term care"),
+        ("Airport Ground Transport", "airport ground transportation shuttle"),
+        ("Senior Transport", "elder senior transportation services"),
+        ("Vehicle Towing", "towing vehicle recovery transport"),
     ]
     links = []
     for label, query in terms:
@@ -829,7 +1034,7 @@ CSV_COLUMNS = [
     "response_deadline", "naics_code", "award_amount", "place_of_performance",
     "description", "contact_name", "contact_email", "contact_phone", "url",
     "keywords_matched", "relevance", "service_type", "source", "sector",
-    "opportunity_type", "status", "is_new", "notes",
+    "opportunity_type", "engagement_model", "status", "is_new", "notes",
 ]
 
 
@@ -854,14 +1059,17 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
     """Generate mobile-friendly HTML report with search, filters, sector badges,
     and private sector directory section."""
 
-    # Sort: high relevance first, then by award amount descending
+    # Sort: contracts first, then high relevance, then by award amount descending
     def sort_key(opp):
+        # Contracts before gig work
+        eng = opp.get("engagement_model", "unknown")
+        eng_order = {"contract": 0, "hybrid": 1, "unknown": 2, "gig": 3}
         rel_order = {"high": 0, "medium": 1, "low": 2}
         try:
             amount = float(opp.get("award_amount", 0) or 0)
         except (ValueError, TypeError):
             amount = 0
-        return (rel_order.get(opp.get("relevance", "low"), 2), -amount)
+        return (eng_order.get(eng, 2), rel_order.get(opp.get("relevance", "low"), 2), -amount)
 
     all_opportunities.sort(key=sort_key)
 
@@ -874,6 +1082,12 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
     feed_count = sum(1 for o in all_opportunities if o.get("source") in ("Craigslist", "Indeed"))
     dir_count = sum(1 for o in all_opportunities if o.get("source") == "Directory")
     high_count = sum(1 for o in all_opportunities if o.get("relevance") == "high")
+    contract_count = sum(1 for o in all_opportunities
+                         if o.get("engagement_model") == "contract"
+                         or o.get("opportunity_type") == "contract")
+    gig_count = sum(1 for o in all_opportunities
+                    if o.get("engagement_model") == "gig"
+                    or o.get("opportunity_type") == "gig")
 
     # Collect service types and statuses for filter dropdowns
     service_types = sorted(set(o.get("service_type", "Other Transport") for o in all_opportunities))
@@ -895,7 +1109,15 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
             categories.setdefault(cat, []).append(entry)
 
         dir_cards = ""
-        for cat_name in ["Last-Mile Delivery", "Freight", "Rideshare/Gig", "NEMT", "Other Transport"]:
+        for cat_name in [
+            "NEMT", "Medical Courier", "Pharmacy Delivery",
+            "Hospital Shuttle", "Campus Shuttle", "Corporate Shuttle",
+            "Airport Transport", "Event Transport",
+            "Paratransit", "Senior Transport",
+            "Freight", "Last-Mile Delivery",
+            "Shuttle/Charter", "Logistics",
+            "Rideshare/Gig", "Other Transport",
+        ]:
             if cat_name not in categories:
                 continue
             dir_cards += '<h4 class="dir-cat-title">{}</h4>'.format(escape_html(cat_name))
@@ -959,6 +1181,17 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
         sector_color = "#2980b9" if sector == "public" else "#e67e22"
         sector_label = "Public" if sector == "public" else "Private"
 
+        # Engagement model badge
+        engagement = opp.get("engagement_model", "unknown")
+        engagement_colors = {
+            "contract": "#27ae60",
+            "gig": "#e74c3c",
+            "hybrid": "#f39c12",
+            "unknown": "#95a5a6",
+        }
+        engagement_color = engagement_colors.get(engagement, "#95a5a6")
+        engagement_label = engagement.upper() if engagement != "unknown" else ""
+
         rel = opp.get("relevance", "low")
         rel_colors = {"high": "#c0392b", "medium": "#e67e22", "low": "#7f8c8d"}
         rel_color = rel_colors.get(rel, "#7f8c8d")
@@ -966,8 +1199,16 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
         stype = opp.get("service_type", "Other Transport")
         stype_colors = {
             "NEMT": "#16a085",
+            "Medical Courier": "#1abc9c",
+            "Pharmacy Delivery": "#148f77",
             "Courier/Delivery": "#d35400",
             "Paratransit": "#2c3e50",
+            "Senior Transport": "#34495e",
+            "Hospital Shuttle": "#2ecc71",
+            "Campus Shuttle": "#27ae60",
+            "Corporate Shuttle": "#229954",
+            "Airport Transport": "#2980b9",
+            "Event Transport": "#8e44ad",
             "Shuttle/Charter": "#27ae60",
             "Logistics": "#8e44ad",
             "Freight": "#c0392b",
@@ -1068,6 +1309,7 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
             opp.get("notes", ""),
             sector,
             opp_type,
+            engagement,
         ]
         search_text = " ".join(search_parts).lower().replace('"', "&quot;")
 
@@ -1078,10 +1320,11 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
                 escape_html(opp["notes"]))
 
         return (
-            '<div class="opp-card{private_class}" '
+            '<div class="opp-card{private_class}{contract_class}" '
             'data-source="{data_source}" '
             'data-sector="{data_sector}" '
             'data-opportunity-type="{data_opp_type}" '
+            'data-engagement="{data_engagement}" '
             'data-relevance="{data_rel}" '
             'data-service-type="{data_stype}" '
             'data-status="{data_status}" '
@@ -1097,6 +1340,7 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
             '<span class="badge" style="background:{source_color};">{source_label}</span>'
             '<span class="badge" style="background:{rel_color};">{rel_upper}</span>'
             '<span class="badge" style="background:{stype_color};">{stype}</span>'
+            '{engagement_badge}'
             '{new_badge}'
             '</div></div>'
             '<div class="card-sub">{agency}'
@@ -1118,9 +1362,11 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
             '</div>'
         ).format(
             private_class=" private-card" if sector == "private" else "",
+            contract_class=" contract-card" if engagement == "contract" else "",
             data_source=escape_html(source),
             data_sector=escape_html(sector),
             data_opp_type=escape_html(opp_type),
+            data_engagement=escape_html(engagement),
             data_rel=escape_html(rel),
             data_stype=escape_html(stype),
             data_status=escape_html(opp.get("status", "active")),
@@ -1137,6 +1383,8 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
             rel_upper=rel.upper(),
             stype_color=stype_color,
             stype=escape_html(stype),
+            engagement_badge='<span class="badge" style="background:{};">{}</span>'.format(
+                engagement_color, engagement_label) if engagement_label else "",
             new_badge=new_badge,
             agency=escape_html(opp.get("agency", "N/A")),
             naics_span=' &bull; NAICS: {}'.format(escape_html(opp.get("naics_code", ""))) if opp.get("naics_code") else "",
@@ -1166,7 +1414,7 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MA Transportation Opportunity Tracker</title>
+    <title>MA Transport Contract Tracker -- Private Contracting Opportunities</title>
     <style>
         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
         body {{
@@ -1342,6 +1590,13 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
         .opp-card.private-card {{
             border-left-color: #e67e22;
         }}
+        .opp-card.contract-card {{
+            border-left-color: #27ae60;
+            border-left-width: 5px;
+        }}
+        .opp-card.contract-card.private-card {{
+            border-left-color: #27ae60;
+        }}
         .opp-card[data-is-new="true"] {{
             border-left-color: #27ae60;
         }}
@@ -1463,10 +1718,11 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
     </style>
 </head>
 <body>
-    <h1>MA Transportation Opportunity Tracker</h1>
+    <h1>MA Transport Contract Tracker</h1>
     <p style="color:#888;font-size:0.85em;margin-bottom:12px;">
-        NEMT, courier, paratransit, shuttle, freight, rideshare &amp; transport opportunities in Massachusetts &bull;
-        Public &amp; Private Sector &bull;
+        Private contracting opportunities: NEMT, medical courier, hospital/campus/corporate shuttle,
+        paratransit, senior transport, freight, pharmacy delivery &amp; more in Massachusetts &bull;
+        Contracts over gig work &bull;
         Updated {run_time} UTC
     </p>
 
@@ -1475,6 +1731,14 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
             <div class="stat">
                 <div class="stat-num">{summary_total}</div>
                 <div class="stat-label">Total Tracked</div>
+            </div>
+            <div class="stat" style="background:#e8f8f5;">
+                <div class="stat-num" style="color:#27ae60;">{contract_count}</div>
+                <div class="stat-label">Contracts</div>
+            </div>
+            <div class="stat">
+                <div class="stat-num">{gig_count}</div>
+                <div class="stat-label">Gig/Hourly</div>
             </div>
             <div class="stat">
                 <div class="stat-num">{summary_new}</div>
@@ -1491,10 +1755,6 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
             <div class="stat">
                 <div class="stat-num">{sam_count}</div>
                 <div class="stat-label">SAM.gov</div>
-            </div>
-            <div class="stat">
-                <div class="stat-num">{feed_count}</div>
-                <div class="stat-label">Job Feeds</div>
             </div>
             <div class="stat">
                 <div class="stat-num">{dir_count}</div>
@@ -1520,6 +1780,12 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
         <input type="text" id="searchInput" class="search-input"
                placeholder="Search title, agency, description, keywords, sector, type...">
         <div class="filter-row">
+            <select id="filterEngagement" class="filter-select">
+                <option value="">All Work Types</option>
+                <option value="contract">Contracts Only</option>
+                <option value="gig">Gig/Hourly Only</option>
+                <option value="hybrid">Hybrid</option>
+            </select>
             <select id="filterSector" class="filter-select">
                 <option value="">All Sectors</option>
                 <option value="public">Public</option>
@@ -1568,8 +1834,8 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
         <a href="https://www.commbuys.com" style="color:#aaa;">COMMBUYS</a>,
         <a href="https://boston.craigslist.org" style="color:#aaa;">Craigslist</a>,
         <a href="https://www.indeed.com" style="color:#aaa;">Indeed</a>
-        &amp; curated private sector directory &bull;
-        MA Transportation Opportunity Tracker
+        &amp; curated directory of 30+ contract providers &bull;
+        MA Transport Contract Tracker &mdash; Private Contracting Focus
     </footer>
 
     <script>
@@ -1579,6 +1845,7 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
         var noResults = document.getElementById('noResults');
         var countEl = document.getElementById('filterCount');
         var searchInput = document.getElementById('searchInput');
+        var filterEngagement = document.getElementById('filterEngagement');
         var filterSector = document.getElementById('filterSector');
         var filterSource = document.getElementById('filterSource');
         var filterRelevance = document.getElementById('filterRelevance');
@@ -1595,6 +1862,7 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
 
         function applyFilters() {{
             var q = searchInput.value.toLowerCase().trim();
+            var eng = filterEngagement.value;
             var sec = filterSector.value;
             var src = filterSource.value;
             var rel = filterRelevance.value;
@@ -1605,6 +1873,7 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
             for (var i = 0; i < cards.length; i++) {{
                 var c = cards[i];
                 var visible = true;
+                if (eng && c.getAttribute('data-engagement') !== eng) visible = false;
                 if (sec && c.getAttribute('data-sector') !== sec) visible = false;
                 if (src && c.getAttribute('data-source') !== src) visible = false;
                 if (rel && c.getAttribute('data-relevance') !== rel) visible = false;
@@ -1653,6 +1922,7 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
             debounceTimer = setTimeout(update, 200);
         }});
 
+        filterEngagement.addEventListener('change', update);
         filterSector.addEventListener('change', update);
         filterSource.addEventListener('change', update);
         filterRelevance.addEventListener('change', update);
@@ -1674,6 +1944,8 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
         feed_count=feed_count,
         dir_count=dir_count,
         high_count=high_count,
+        contract_count=contract_count,
+        gig_count=gig_count,
         cb_links_html=cb_links_html,
         dir_section_html=dir_section_html,
         stype_options=stype_options,
@@ -1688,8 +1960,8 @@ def generate_html(all_opportunities, commbuys_links, directory_entries, run_time
 # ---------------------------------------------------------------------------
 
 def main():
-    print("MA Transportation Opportunity Tracker")
-    print("=" * 50)
+    print("MA Transport Contract Tracker -- Private Contracting Focus")
+    print("=" * 60)
 
     # 1. Load config + seen opportunities
     config = load_json(CONFIG_PATH)
@@ -1794,9 +2066,19 @@ def main():
     public_count = sum(1 for o in all_opps if o.get("sector") == "public")
     private_count = sum(1 for o in all_opps if o.get("sector") == "private")
 
-    print("\n" + "=" * 50)
+    # Contract vs gig breakdown
+    contract_total = sum(1 for o in all_opps
+                         if o.get("engagement_model") == "contract"
+                         or o.get("opportunity_type") == "contract")
+    gig_total = sum(1 for o in all_opps
+                    if o.get("engagement_model") == "gig"
+                    or o.get("opportunity_type") == "gig")
+
+    print("\n" + "=" * 60)
     print("Summary:")
     print("  Total opportunities: {}".format(len(all_opps)))
+    print("  CONTRACTS: {} | Gig/Hourly: {} | Other: {}".format(
+        contract_total, gig_total, len(all_opps) - contract_total - gig_total))
     print("  Public sector: {} | Private sector: {}".format(public_count, private_count))
     print("  SAM.gov: {} ({} new)".format(len(sam_opps), new_sam))
     print("  Manual: {} ({} new)".format(len(manual_opps), new_manual))
