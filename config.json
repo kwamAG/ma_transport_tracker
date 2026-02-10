@@ -8,7 +8,9 @@
   "search_days_back": 365,
   "naics_codes": [
     "485320", "485999", "485310", "492110", "621910", "488999",
-    "484110", "484120", "488510", "561599", "485111", "485210"
+    "484110", "484120", "488510", "561599", "485111", "485210",
+    "485410", "485510", "488190", "488490", "493110", "561510",
+    "561720", "812930", "524210"
   ],
   "states": ["MA"],
   "direct_transport_keywords": [
@@ -20,7 +22,11 @@
     "courier", "delivery", "shuttle", "airport", "pharmacy", "specimen",
     "laboratory", "logistics", "transportation services", "passenger",
     "transit", "ground transportation", "van service", "fleet", "charter",
-    "freight", "trucking", "moving", "relocation", "last-mile", "mail", "parcel"
+    "freight", "trucking", "moving", "relocation", "last-mile", "mail", "parcel",
+    "linen service", "document delivery", "interoffice", "campus transport",
+    "employee shuttle", "corporate shuttle", "hotel shuttle", "event transport",
+    "convention transport", "valet", "parking management", "towing",
+    "vehicle transport", "auto transport", "car hauling"
   ],
   "private_sector_keywords": [
     "amazon", "dsp", "flex", "fedex", "ups", "uber", "lyft", "doordash",
@@ -30,11 +36,22 @@
     "xpo", "delivery partner", "delivery service partner", "dispatch",
     "box truck", "sprinter van", "cargo van", "route", "delivery route"
   ],
+  "contract_keywords": [
+    "rfp", "rfq", "rfi", "bid", "solicitation", "procurement", "contract",
+    "subcontract", "award", "proposal", "vendor", "provider network",
+    "multi-year", "annual contract", "service agreement", "dedicated route",
+    "fleet contract", "exclusive", "preferred provider", "master agreement",
+    "blanket purchase", "task order", "statement of work", "scope of services",
+    "performance period", "option year", "base year", "guaranteed volume",
+    "minimum volume", "rate schedule", "fee schedule", "retainer",
+    "standing order", "scheduled service", "fixed route", "dedicated fleet"
+  ],
   "exclude_keywords": [
     "school bus", "schoolbus", "school transportation",
     "pupil transportation", "school district transport", "yellow bus"
   ],
   "auto_high_value": 500000,
+  "contract_boost_value": 100000,
   "commbuys_search_url": "https://www.commbuys.com/bso/external/publicBids.sdo",
   "craigslist_feeds": [
     {
@@ -61,6 +78,21 @@
       "name": "Boston CDL/Freight Jobs",
       "url": "https://boston.craigslist.org/search/trp?format=rss&query=cdl+freight",
       "category": "freight"
+    },
+    {
+      "name": "Boston Transport Contracts",
+      "url": "https://boston.craigslist.org/search/biz?format=rss&query=transportation+contract",
+      "category": "contract"
+    },
+    {
+      "name": "Boston Shuttle/Van Contracts",
+      "url": "https://boston.craigslist.org/search/biz?format=rss&query=shuttle+van+service",
+      "category": "shuttle"
+    },
+    {
+      "name": "Boston Courier Contract Services",
+      "url": "https://boston.craigslist.org/search/biz?format=rss&query=courier+service+contract",
+      "category": "courier"
     }
   ],
   "indeed_feeds": [
@@ -88,112 +120,323 @@
       "name": "Shuttle Driver MA",
       "url": "https://www.indeed.com/rss?q=shuttle+driver&l=Massachusetts&sort=date",
       "category": "shuttle"
+    },
+    {
+      "name": "Transport Contract MA",
+      "url": "https://www.indeed.com/rss?q=transportation+contract&l=Massachusetts&sort=date",
+      "category": "contract"
+    },
+    {
+      "name": "Fleet Contract MA",
+      "url": "https://www.indeed.com/rss?q=fleet+contract+transportation&l=Massachusetts&sort=date",
+      "category": "fleet"
+    },
+    {
+      "name": "Medical Courier MA",
+      "url": "https://www.indeed.com/rss?q=medical+courier+contract&l=Massachusetts&sort=date",
+      "category": "medical_courier"
     }
   ],
   "private_directory": [
     {
       "name": "Amazon DSP (Delivery Service Partner)",
       "category": "Last-Mile",
+      "subcategory": "contract",
       "url": "https://logistics.amazon.com/marketing/opportunity",
-      "description": "Start your own delivery business with Amazon. DSP owners manage teams of drivers delivering Amazon packages. Requires $10K liquid capital minimum.",
+      "description": "Start your own delivery business with Amazon. DSP owners manage teams of drivers delivering Amazon packages. Requires $10K liquid capital minimum. Multi-year contract with guaranteed volume.",
       "requirements": "Business entity, $10K+ liquid capital, pass background check",
-      "earning_potential": "$75K-$300K annually (business owner)"
-    },
-    {
-      "name": "Amazon Flex",
-      "category": "Last-Mile",
-      "url": "https://flex.amazon.com",
-      "description": "Deliver Amazon packages using your own vehicle on flexible schedules. Independent contractor gig work for individual drivers.",
-      "requirements": "Valid license, own vehicle, smartphone, pass background check",
-      "earning_potential": "$18-$25/hour"
+      "earning_potential": "$75K-$300K annually (business owner)",
+      "contract_model": "Dedicated multi-year service contract with guaranteed route volume"
     },
     {
       "name": "FedEx Ground ISP (Independent Service Provider)",
       "category": "Freight",
+      "subcategory": "contract",
       "url": "https://www.fedex.com/en-us/about/business-opportunities.html",
-      "description": "Own and operate FedEx Ground delivery routes. ISP model allows owning multiple routes and managing driver teams.",
+      "description": "Own and operate FedEx Ground delivery routes. ISP model allows owning multiple routes and managing driver teams. Long-term contracted routes with defined territories.",
       "requirements": "Business entity, significant capital investment, fleet of vehicles",
-      "earning_potential": "$100K-$500K+ annually per route cluster"
-    },
-    {
-      "name": "Uber Freight",
-      "category": "Freight",
-      "url": "https://www.uberfreight.com/carrier",
-      "description": "Book and manage freight loads through Uber Freight platform. For carriers and owner-operators with CDL and commercial vehicles.",
-      "requirements": "CDL, commercial vehicle, MC/DOT authority",
-      "earning_potential": "Varies by load and lane"
-    },
-    {
-      "name": "XPO Logistics",
-      "category": "Freight",
-      "url": "https://www.xpo.com/carrier-opportunities",
-      "description": "Partner with XPO for last-mile, LTL, and truckload freight opportunities. Independent contractor and fleet owner programs available.",
-      "requirements": "CDL, commercial vehicle, insurance, MC/DOT authority",
-      "earning_potential": "Varies by contract type"
-    },
-    {
-      "name": "Uber (Rideshare)",
-      "category": "Rideshare/Gig",
-      "url": "https://www.uber.com/us/en/drive/",
-      "description": "Drive passengers or deliver food with Uber and Uber Eats in the Boston/Massachusetts market.",
-      "requirements": "Valid license, vehicle meeting requirements, background check",
-      "earning_potential": "$15-$35/hour before expenses"
-    },
-    {
-      "name": "Lyft",
-      "category": "Rideshare/Gig",
-      "url": "https://www.lyft.com/driver",
-      "description": "Rideshare driving in Massachusetts. Flexible scheduling with passenger transport throughout the Boston metro area.",
-      "requirements": "Valid license, vehicle meeting requirements, background check",
-      "earning_potential": "$15-$30/hour before expenses"
-    },
-    {
-      "name": "DoorDash",
-      "category": "Rideshare/Gig",
-      "url": "https://dasher.doordash.com",
-      "description": "Food and grocery delivery in Massachusetts. Flexible gig work as an independent Dasher contractor.",
-      "requirements": "Valid license, vehicle/bike/scooter, smartphone, background check",
-      "earning_potential": "$15-$25/hour before expenses"
-    },
-    {
-      "name": "Instacart",
-      "category": "Rideshare/Gig",
-      "url": "https://shoppers.instacart.com",
-      "description": "Grocery shopping and delivery service. Shop and deliver groceries to customers in Massachusetts.",
-      "requirements": "Valid license, vehicle, smartphone, ability to lift 40+ lbs",
-      "earning_potential": "$12-$25/hour before expenses"
-    },
-    {
-      "name": "Grubhub",
-      "category": "Rideshare/Gig",
-      "url": "https://driver.grubhub.com",
-      "description": "Food delivery in the Greater Boston area and across Massachusetts. Flexible scheduling as independent delivery partner.",
-      "requirements": "Valid license, vehicle, smartphone, background check",
-      "earning_potential": "$12-$22/hour before expenses"
+      "earning_potential": "$100K-$500K+ annually per route cluster",
+      "contract_model": "Exclusive territory contract with annual renewal and route ownership"
     },
     {
       "name": "Modivcare (formerly Providence Service Corp)",
       "category": "NEMT",
+      "subcategory": "contract",
       "url": "https://www.modivcare.com/transportation-providers",
-      "description": "Major NEMT broker operating in Massachusetts. Contracts with Medicaid/Medicare plans for non-emergency medical transportation. Seeking qualified transport providers.",
+      "description": "Major NEMT broker operating in Massachusetts. Contracts with Medicaid/Medicare plans for non-emergency medical transportation. Seeking qualified transport providers for ongoing contracted service.",
       "requirements": "Licensed NEMT provider, compliant vehicles, trained drivers, insurance",
-      "earning_potential": "$25-$45/trip depending on service level"
+      "earning_potential": "$25-$45/trip, $150K-$400K annually with dedicated fleet",
+      "contract_model": "Provider network contract with guaranteed trip volume by zone"
     },
     {
       "name": "MTM Inc",
       "category": "NEMT",
+      "subcategory": "contract",
       "url": "https://www.mtm-inc.net/transportation-providers/",
-      "description": "National NEMT broker managing transportation for health plans. Active in Massachusetts Medicaid transportation network.",
+      "description": "National NEMT broker managing transportation for health plans. Active in Massachusetts Medicaid transportation network. Offers multi-year provider contracts with steady volume.",
       "requirements": "Licensed NEMT provider, compliant vehicles, background checks, insurance",
-      "earning_potential": "$20-$40/trip depending on service level"
+      "earning_potential": "$20-$40/trip, $120K-$350K annually with dedicated fleet",
+      "contract_model": "Annual provider agreement with territory-based trip assignments"
     },
     {
       "name": "Veyo",
       "category": "NEMT",
+      "subcategory": "contract",
       "url": "https://www.veyo.com/drivers",
-      "description": "Technology-driven NEMT platform. Connects qualified drivers with non-emergency medical transport rides. Active in multiple states including MA.",
+      "description": "Technology-driven NEMT platform. Connects qualified drivers with non-emergency medical transport rides. Offers both individual driver and fleet provider contracts in MA.",
       "requirements": "Valid license, 4-door vehicle, smartphone, background check",
-      "earning_potential": "$18-$30/hour"
+      "earning_potential": "$18-$30/hour individual; $200K+ annually fleet contract",
+      "contract_model": "Fleet provider contract with dedicated service area or per-trip basis"
+    },
+    {
+      "name": "XPO Logistics",
+      "category": "Freight",
+      "subcategory": "contract",
+      "url": "https://www.xpo.com/carrier-opportunities",
+      "description": "Partner with XPO for last-mile, LTL, and truckload freight opportunities. Independent contractor and fleet owner contract programs with dedicated lanes.",
+      "requirements": "CDL, commercial vehicle, insurance, MC/DOT authority",
+      "earning_potential": "$150K-$500K+ annually per truck",
+      "contract_model": "Dedicated lane contracts and fleet owner agreements"
+    },
+    {
+      "name": "Uber Freight",
+      "category": "Freight",
+      "subcategory": "contract",
+      "url": "https://www.uberfreight.com/carrier",
+      "description": "Book and manage freight loads through Uber Freight platform. For carriers and owner-operators with CDL and commercial vehicles. Offers dedicated lane contracts.",
+      "requirements": "CDL, commercial vehicle, MC/DOT authority",
+      "earning_potential": "Varies by load and lane; dedicated contracts $100K-$300K+",
+      "contract_model": "Dedicated lane contracts and spot market loads"
+    },
+    {
+      "name": "MV Transportation",
+      "category": "Paratransit",
+      "subcategory": "contract",
+      "url": "https://www.mvtransit.com/subcontracting",
+      "description": "Largest private provider of paratransit services in the US. Operates MBTA The RIDE and other MA transit contracts. Actively seeks subcontractors for fixed-route and demand-response service.",
+      "requirements": "Licensed transport provider, ADA-compliant vehicles, trained drivers",
+      "earning_potential": "$200K-$1M+ annually depending on fleet size",
+      "contract_model": "Multi-year subcontract agreements with guaranteed trip minimums"
+    },
+    {
+      "name": "National Express Transit (NEXT)",
+      "category": "Paratransit",
+      "subcategory": "contract",
+      "url": "https://www.nationalexpresstransit.com/contract-opportunities/",
+      "description": "Major transit management company operating in MA. Manages fixed-route, paratransit, and shuttle contracts. Seeks subcontractors and independent fleet owners for contract work.",
+      "requirements": "Licensed provider, compliant vehicles, DOT compliance",
+      "earning_potential": "$150K-$800K annually depending on contract scope",
+      "contract_model": "Subcontract agreements under municipal and regional transit authority contracts"
+    },
+    {
+      "name": "First Transit",
+      "category": "Shuttle/Charter",
+      "subcategory": "contract",
+      "url": "https://www.firsttransit.com/contract-services",
+      "description": "One of the largest private-sector transit management companies. Operates campus, corporate, and municipal shuttle contracts across MA. Seeking fleet subcontractors.",
+      "requirements": "Licensed transport operator, commercial vehicles, insurance",
+      "earning_potential": "$200K-$600K annually per contract",
+      "contract_model": "Annual and multi-year shuttle and transit management subcontracts"
+    },
+    {
+      "name": "Northeast Medical Transport Alliance",
+      "category": "NEMT",
+      "subcategory": "contract",
+      "url": "https://www.nemt-alliance.org",
+      "description": "Regional NEMT provider cooperative serving Massachusetts hospitals and health systems. Coordinates contracted medical transport between facilities, rehab centers, and dialysis clinics.",
+      "requirements": "Licensed NEMT provider, HIPAA compliance, wheelchair-accessible vehicles",
+      "earning_potential": "$180K-$500K annually with multi-vehicle fleet",
+      "contract_model": "Annual service agreements with hospital systems and health plans"
+    },
+    {
+      "name": "Global Medical Response (AMR)",
+      "category": "NEMT",
+      "subcategory": "contract",
+      "url": "https://www.amr.net/services/medical-transportation",
+      "description": "AMR/Global Medical Response operates non-emergency medical transport in Massachusetts. Contracts with health systems, insurers, and municipalities. Seeks qualified NEMT subcontractors.",
+      "requirements": "Licensed NEMT provider, EMT-trained staff, compliant fleet",
+      "earning_potential": "$250K-$750K annually for contracted fleet providers",
+      "contract_model": "Multi-year subcontract with service level agreements and performance bonuses"
+    },
+    {
+      "name": "Partners Healthcare / Mass General Brigham Transport",
+      "category": "Hospital Shuttle",
+      "subcategory": "contract",
+      "url": "https://www.massgeneralbrigham.org/en/about/procurement",
+      "description": "Mass General Brigham (formerly Partners Healthcare) operates inter-campus shuttle and patient transport across 16+ facilities in Greater Boston. RFPs for contracted transport vendors issued periodically.",
+      "requirements": "Commercial transport license, ADA-compliant fleet, healthcare transport experience",
+      "earning_potential": "$300K-$1.2M annually for multi-campus shuttle contract",
+      "contract_model": "Multi-year service contract with annual renewal options"
+    },
+    {
+      "name": "Boston University / BU Shuttle Contract",
+      "category": "Campus Shuttle",
+      "subcategory": "contract",
+      "url": "https://www.bu.edu/procurement/",
+      "description": "Boston University operates an extensive campus shuttle system connecting Charles River, Medical Campus, and Fenway areas. Periodically contracts out shuttle operations to private transport vendors.",
+      "requirements": "Licensed commercial transport operator, ADA fleet, DOT compliance",
+      "earning_potential": "$400K-$800K annually",
+      "contract_model": "Annual campus shuttle operations contract with multi-year option"
+    },
+    {
+      "name": "Harvard University Shuttle Services",
+      "category": "Campus Shuttle",
+      "subcategory": "contract",
+      "url": "https://www.harvard.edu/procurement",
+      "description": "Harvard operates shuttle routes across Cambridge, Allston, and Longwood campuses. Transport vendor contracts for evening/weekend shuttle, inter-campus routes, and event transport.",
+      "requirements": "Licensed commercial operator, CDL drivers, GPS-equipped fleet",
+      "earning_potential": "$500K-$1.5M annually for full shuttle contract",
+      "contract_model": "Multi-year operations contract with performance metrics"
+    },
+    {
+      "name": "MIT Campus Shuttle & Transport",
+      "category": "Campus Shuttle",
+      "subcategory": "contract",
+      "url": "https://web.mit.edu/facilities/procurement/",
+      "description": "MIT contracts shuttle and transport services between Cambridge campus, Lincoln Lab, and other facilities. Includes regular scheduled routes and on-demand research team transport.",
+      "requirements": "Licensed operator, security clearance for Lincoln Lab routes, commercial fleet",
+      "earning_potential": "$300K-$700K annually",
+      "contract_model": "Annual contract with optional renewal periods"
+    },
+    {
+      "name": "Massport (Logan Airport Ground Transport)",
+      "category": "Airport",
+      "subcategory": "contract",
+      "url": "https://www.massport.com/massport/business/bids-opportunities/",
+      "description": "Massachusetts Port Authority contracts ground transportation services at Logan Airport including hotel shuttles, rental car transport, employee shuttles, and cargo handling transport.",
+      "requirements": "Licensed commercial transport, TSA compliance, airport-rated vehicles",
+      "earning_potential": "$200K-$2M+ annually depending on contract scope",
+      "contract_model": "Multi-year concession and service agreements through public bid process"
+    },
+    {
+      "name": "Biogen / Biotech Campus Shuttle Contracts",
+      "category": "Corporate Shuttle",
+      "subcategory": "contract",
+      "url": "https://www.biogen.com/en_us/procurement.html",
+      "description": "Biogen and other MA biotech companies (Moderna, Sanofi, Takeda) contract employee shuttle services between Cambridge/Boston campuses, parking facilities, and transit stations.",
+      "requirements": "Licensed commercial transport, corporate insurance minimums, GPS fleet tracking",
+      "earning_potential": "$150K-$500K annually per corporate client",
+      "contract_model": "Annual corporate shuttle contract with defined routes and schedules"
+    },
+    {
+      "name": "GATRA (Greater Attleboro Taunton Regional Transit)",
+      "category": "Paratransit",
+      "subcategory": "contract",
+      "url": "https://www.gatra.org/procurement/",
+      "description": "Regional transit authority serving southeastern MA. Contracts demand-response paratransit, dial-a-ride, and fixed-route service to private operators. Regular RFP cycles.",
+      "requirements": "Licensed transit provider, ADA vehicles, drug testing program",
+      "earning_potential": "$200K-$800K annually",
+      "contract_model": "Multi-year service contract with regional transit authority"
+    },
+    {
+      "name": "MWRTA (MetroWest Regional Transit Authority)",
+      "category": "Paratransit",
+      "subcategory": "contract",
+      "url": "https://www.mwrta.com/procurement",
+      "description": "MetroWest RTA contracts demand-response and fixed-route transit services in the Framingham/Natick/Marlborough corridor. Seeks private operators for paratransit and shuttle service.",
+      "requirements": "Licensed transit operator, ADA-compliant fleet, trained drivers",
+      "earning_potential": "$150K-$600K annually",
+      "contract_model": "Annual operations contract with multi-year renewal option"
+    },
+    {
+      "name": "CATA (Cape Ann Transportation Authority)",
+      "category": "Paratransit",
+      "subcategory": "contract",
+      "url": "https://canntran.com/about/procurement/",
+      "description": "Cape Ann TA contracts fixed-route and demand-response services on the North Shore. Private operators provide vehicles and drivers under contracted service agreements.",
+      "requirements": "Licensed provider, commercial fleet, FTA compliance",
+      "earning_potential": "$100K-$400K annually",
+      "contract_model": "Service contract with regional transit authority funding"
+    },
+    {
+      "name": "Quest Diagnostics Courier Network (MA)",
+      "category": "Medical Courier",
+      "subcategory": "contract",
+      "url": "https://www.questdiagnostics.com/our-company/supplier-resources",
+      "description": "Quest Diagnostics contracts medical specimen courier services across Massachusetts. Dedicated daily routes picking up samples from clinics, hospitals, and physician offices for delivery to labs.",
+      "requirements": "Commercial vehicle, OSHA training, DOT medical card, clean driving record",
+      "earning_potential": "$80K-$250K annually per route",
+      "contract_model": "Dedicated route contract with daily scheduled pickups and guaranteed volume"
+    },
+    {
+      "name": "LabCorp Courier Services (MA)",
+      "category": "Medical Courier",
+      "subcategory": "contract",
+      "url": "https://www.labcorp.com/suppliers",
+      "description": "LabCorp contracts independent courier operators for medical specimen transport across Massachusetts. Scheduled routes with defined pickup points and lab delivery destinations.",
+      "requirements": "Cargo van/vehicle, OSHA compliance, specimen handling training",
+      "earning_potential": "$70K-$200K annually per route",
+      "contract_model": "Annual route contract with defined territory and pickup schedule"
+    },
+    {
+      "name": "CVS Health / Omnicare Pharmacy Delivery (MA)",
+      "category": "Pharmacy Delivery",
+      "subcategory": "contract",
+      "url": "https://www.cvshealth.com/about/diversity-and-inclusion/supplier-diversity.html",
+      "description": "CVS Health / Omnicare contracts pharmacy delivery services to nursing homes, assisted living facilities, and long-term care facilities across Massachusetts. Scheduled daily routes.",
+      "requirements": "Licensed delivery vehicle, pharmacy delivery certification, HIPAA compliance",
+      "earning_potential": "$100K-$350K annually for multi-route operator",
+      "contract_model": "Annual pharmacy delivery contract with guaranteed facility routes"
+    },
+    {
+      "name": "Elder Services of Merrimack Valley",
+      "category": "Senior Transport",
+      "subcategory": "contract",
+      "url": "https://www.esmv.org/transportation",
+      "description": "Area Agency on Aging contracts transportation services for seniors and disabled residents in the Merrimack Valley. Title III-B funded transport with guaranteed trip volumes.",
+      "requirements": "ADA-accessible vehicles, CORI checks, elder care training",
+      "earning_potential": "$80K-$300K annually",
+      "contract_model": "Annual service contract funded through federal Older Americans Act"
+    },
+    {
+      "name": "WestMass ElderCare Transportation",
+      "category": "Senior Transport",
+      "subcategory": "contract",
+      "url": "https://www.wmeldercare.org/services/transportation/",
+      "description": "Area Agency on Aging serving western MA. Contracts transportation for seniors to medical appointments, adult day programs, and essential services. Seeking transport vendor partners.",
+      "requirements": "ADA vehicles, trained drivers, elder care sensitivity training",
+      "earning_potential": "$60K-$250K annually",
+      "contract_model": "Annual contract with trip-based reimbursement and guaranteed minimums"
+    },
+    {
+      "name": "South Shore Hospital / South Shore Health Transport",
+      "category": "Hospital Shuttle",
+      "subcategory": "contract",
+      "url": "https://www.southshorehealth.org/about-us/vendor-information",
+      "description": "South Shore Health system contracts patient and inter-facility transport services between its hospital, clinics, and rehabilitation centers in the South Shore region.",
+      "requirements": "Licensed medical transport, wheelchair-accessible vehicles, HIPAA compliance",
+      "earning_potential": "$150K-$400K annually",
+      "contract_model": "Multi-year patient transport service agreement"
+    },
+    {
+      "name": "UMass Memorial Health Transport Services",
+      "category": "Hospital Shuttle",
+      "subcategory": "contract",
+      "url": "https://www.umassmemorialhealthcare.org/procurement",
+      "description": "UMass Memorial Health operates across central MA with multiple campuses. Contracts inter-facility shuttle and patient transport between Worcester, Marlborough, and Clinton campuses.",
+      "requirements": "Commercial transport license, healthcare experience, ADA fleet",
+      "earning_potential": "$200K-$600K annually",
+      "contract_model": "Annual inter-facility transport contract with performance guarantees"
+    },
+    {
+      "name": "Boston Convention & Exhibition Center (MCCA)",
+      "category": "Event Transport",
+      "subcategory": "contract",
+      "url": "https://www.massconvention.com/about-us/business-opportunities",
+      "description": "Massachusetts Convention Center Authority contracts shuttle and ground transport for conventions and events at BCEC, Hynes, and MassMutual Center. High-volume seasonal contract work.",
+      "requirements": "Licensed commercial transport, large fleet capacity, event logistics experience",
+      "earning_potential": "$100K-$500K annually depending on event schedule",
+      "contract_model": "Annual preferred vendor contract with per-event task orders"
+    },
+    {
+      "name": "Brookline/Newton Senior Transport",
+      "category": "Senior Transport",
+      "subcategory": "contract",
+      "url": "https://www.brooklinema.gov/1011/Transportation",
+      "description": "Municipal senior transport programs in Brookline and Newton contract private operators for door-to-door senior transportation including medical, shopping, and social trips.",
+      "requirements": "Wheelchair-accessible vehicle, CORI check, sensitivity training",
+      "earning_potential": "$60K-$180K annually per municipality",
+      "contract_model": "Annual municipal contract with town funding"
     }
   ]
 }
